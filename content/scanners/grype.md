@@ -449,7 +449,7 @@ You write the application code; somebody's CI builds the image. These are the co
 
 - **Container scans don't see what your runtime mounts.** A read-only `ConfigMap` mounted at `/app/config/` in Kubernetes isn't in the image; a `PersistentVolume` mounted at `/data/` likewise. CVE counts from the image may differ from reality on the cluster. Same for `:rw` bind mounts in `docker-compose.yml`.
 
-- **`docker history` reveals secrets that aren't in the image's filesystem.** A `RUN export AWS_KEY=foo && do-thing` puts `foo` in the layer metadata, even if it's not in the final filesystem. Grype won't flag it as a CVE, but secret scanners on the image (Trivy with `--security-checks secret`) will. Worth knowing the gotcha exists even though it's a different scanner family.
+- **`docker history` reveals secrets that aren't in the image's filesystem.** A `RUN export AWS_KEY=foo && do-thing` puts `foo` in the layer metadata, even if it's not in the final filesystem. Grype won't flag it as a CVE, but secret scanners on the image ([Trivy](./trivy/) with `--security-checks secret`) will. Worth knowing the gotcha exists even though it's a different scanner family.
 
 ## Producing an OpenVEX
 

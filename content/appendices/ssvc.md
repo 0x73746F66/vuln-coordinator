@@ -161,7 +161,7 @@ Scanner: `npm audit` flags lodash 4.17.15 (CVSS 7.2 HIGH, fix in 4.17.21).
 
 ### Example 2 — `openssl` critical in a container
 
-Scanner: Trivy flags openssl 1.1.1k in the base image (CVE-2023-5678, CRITICAL, fix in 1.1.1l).
+Scanner: [Trivy](../scanners/trivy/) flags openssl 1.1.1k in the base image (CVE-2023-5678, CRITICAL, fix in 1.1.1l).
 
 | Input | Value | Why |
 |---|---|---|

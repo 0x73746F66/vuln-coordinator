@@ -40,7 +40,7 @@ Writing VEX feels like an extra step. It's worth it for five reasons that compou
 
 **Compliance is already done.** VEX is referenced in CISA guidance, NIST SP 800-218, and the EU Cyber Resilience Act as the mechanism for communicating exploitability status. Producing VEX during normal development means the compliance artefact exists before it's requested.
 
-Grype, Trivy, and the Vulnetix platform all consume VEX today. The investment pays back every time the scanner runs.
+[Grype](../scanners/grype/), [Trivy](../scanners/trivy/), and the Vulnetix platform all consume VEX today. The investment pays back every time the scanner runs.
 
 
 ---

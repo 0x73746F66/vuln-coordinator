@@ -99,7 +99,7 @@ The same five reasons that justify writing [VEX](vex/) by hand apply here, but m
 
 - **Future-you doesn't need to remember the format.** The plugin picked one consistent with the artefact.
 - **Past decisions are durable.** `.vulnetix/memory.yaml` is committed to the repo; every triage decision is reproducible.
-- **Colleagues see less noise.** The same `--vex` consumption loop ([Grype](../scanners/grype/), Trivy, Vulnetix) suppresses findings the plugin's `/vulnetix:vex-publish` has already attested.
+- **Colleagues see less noise.** The same `--vex` consumption loop ([Grype](../scanners/grype/), [Trivy](../scanners/trivy/), Vulnetix) suppresses findings the plugin's `/vulnetix:vex-publish` has already attested.
 - **Compliance is already done.** The compliance-bundler agent produces a single ZIP with SBOM + SPDX + SARIF + VEX + cosign signatures + a manifest, ready for audit.
 - **The decision burden moves to the tool.** The whole point of the plugin is that you stay in the code, not in a security UI.
 
