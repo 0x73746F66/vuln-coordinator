@@ -27,9 +27,17 @@
 
   <div class="sidebar__section">
     <div class="sidebar__heading">Appendices</div>
-    {{ range where .Site.RegularPages "Section" "appendices" }}
-      <a class="sidebar__link{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
-         href="{{ .RelPermalink }}">{{ .Title }}</a>
+    {{ with .Site.GetPage "/appendices" }}
+      {{ range .Pages }}
+        <a class="sidebar__link{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
+           href="{{ .RelPermalink }}">{{ .Title }}</a>
+        {{ if .IsSection }}
+          {{ range .Pages }}
+            <a class="sidebar__sublink{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
+               href="{{ .RelPermalink }}">{{ .Title }}</a>
+          {{ end }}
+        {{ end }}
+      {{ end }}
     {{ end }}
   </div>
 </aside>

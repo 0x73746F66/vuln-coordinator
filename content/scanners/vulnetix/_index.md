@@ -104,7 +104,27 @@ jq '.runs[].results[] | {
 
 ## Decision tree
 
-Vulnetix emits both an SBOM and SARIF in the same run, so the decision splits along the artefact line.
+Two decisions to make, in order. The first is about **what action to take** — prioritise this finding via SSVC Engineer Triage. The second is about **what format to record it in** — CycloneDX VEX or OpenVEX.
+
+### Action — Engineer Triage
+
+Vulnetix's `vdb vuln` returns the CISA Coordinator SSVC decision (`Act` / `Attend` / `Track*` / `Track`), but Coordinator answers a coordinator's question (whether to issue an advisory), not a developer's. The developer's framework is **Engineer Triage** — four inputs (reachability, remediation, mitigation, priority) producing one of four actions: `NIGHTLY_AUTO_PATCH`, `BACKLOG`, `SPIKE_EFFORT`, `DROP_TOOLS`. See the **[SSVC appendix](../../appendices/ssvc/)** for the framework, the inputs, and the decision-tree summary.
+
+Pull the Coordinator output to inform the `priority` input of Engineer Triage:
+
+```bash
+vulnetix vdb vuln <CVE-ID> --output json \
+  | jq '.[0].containers.adp[0] | {
+          coordinator: .x_ssvc.decision,
+          exploitation: .x_exploitationMaturity.level,
+          kev: .x_kev.knownRansomwareCampaignUse,
+          epss: .x_exploitationMaturity.factors.epss
+        }'
+```
+
+### Format — CycloneDX VEX vs OpenVEX
+
+Vulnetix emits both an SBOM and SARIF in the same run, so the format choice splits along the artefact line.
 
 {{< decision >}}
 For SCA findings (sourced from `sbom.cdx.json`):
@@ -114,7 +134,7 @@ For SAST / secrets / IaC / Dockerfile findings (sourced from `sast.sarif`):
   → OpenVEX statement, subject is the repo at the scanned commit
 
 Need a WAF / IPS / SIEM mitigation rather than a code fix?
-  Vulnetix itself can supply the rule:
+  (Engineer Triage's MitigationOption = INFRASTRUCTURE — Vulnetix supplies the rule)
     vulnetix vdb traffic-filters <CVE-ID>   # Snort / Suricata IPS signatures per CVE
     vulnetix vdb snort-rules get <CVE-ID>   # idem, richer filtering on classtype / port / content
     vulnetix vdb nuclei get <CVE-ID>        # Nuclei templates for exploit verification
