@@ -78,6 +78,27 @@ body {
 a { color: inherit; text-decoration: none; }
 a:hover { opacity: 0.75; }
 
+.content a {
+  color: var(--vx-mint-strong);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.content a:hover {
+  opacity: 1;
+  text-decoration-thickness: 2px;
+}
+
+.content h1 a,
+.content h2 a,
+.content h3 a,
+.content h4 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.content a code { color: inherit; }
+
 /* =========================================================
    TOP NAV
    ========================================================= */
