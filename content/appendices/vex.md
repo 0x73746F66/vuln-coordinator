@@ -1,6 +1,6 @@
 ---
-title: "VEX — CycloneDX VEX and OpenVEX"
-description: "Two formats for one job: recording your decision about a finding so nobody re-investigates it."
+title: "VEX — overview"
+description: "What VEX is, why it exists, which of the two formats to pick, and why writing one is worth your time."
 weight: 20
 ---
 
@@ -10,180 +10,31 @@ A Vulnerability Exploitability eXchange (VEX) statement is a machine-readable re
 
 VEX exists because vulnerability scanners do a particular kind of thing badly. They match component versions against advisory databases, then list every match — without checking whether the vulnerable code path is reachable, whether the input is attacker-controllable, or whether a compensating control already blocks the vector. Many matches are false positives in your particular build. Without a VEX statement, every person who runs the scanner against your code re-litigates the same noise. With one, tools that understand VEX can suppress findings you've already assessed.
 
-## The two formats
+## Two formats, one job
 
-### CycloneDX VEX
+VEX comes in two flavours. They do the same job but live in different homes.
 
-CycloneDX VEX is part of the CycloneDX standard. A VEX document is either embedded inside a CycloneDX SBOM or supplied as a standalone CycloneDX document that references the SBOM by serial number.
+**[CycloneDX VEX](../cyclonedx-vex/)** is part of the CycloneDX standard. It travels with — or alongside — your SBOM, and every finding it records points back to a component declared in that SBOM by PURL. Use it when the vulnerability is in a packaged component you can name.
 
-**Use CycloneDX VEX when** the finding is a known component in your SBOM — a library, a package, a container base image layer.
+**[OpenVEX](../openvex/)** is a standalone, lightweight format. It doesn't need an SBOM to be useful, and the subject can be anything you can identify with a URL or PURL — your repository at a specific commit, a deployed service, an IaC manifest, a secret in source. Use it when the finding isn't a packaged component: SAST findings in code you wrote, secrets, runtime mitigations against vulnerabilities whose patches haven't shipped yet.
 
-A CycloneDX VEX entry records:
+For the format details, field reference, and worked examples, see the dedicated pages.
 
-- The affected component (referenced by PURL, matching your SBOM entry)
-- The vulnerability ID (CVE or GHSA)
-- The **analysis state**: `not_affected`, `in_triage`, `affected`, or `fixed`
-- The **justification** (when `not_affected`): `component_not_present`, `vulnerable_code_not_present`, `vulnerable_code_cannot_be_controlled_by_adversary`, `vulnerable_code_not_in_execute_path`, `inline_mitigations_already_exist`
-- A free-text **detail** explaining the decision
-- A **response** (when `affected`): `will_not_fix`, `update`, `rollback`, `workaround_available`, `fix_planned`
+## Which one do I pick?
 
-{{< tabs >}}
-{{< tab name="not_affected" >}}
-```json
-{
-  "bomFormat": "CycloneDX",
-  "specVersion": "1.6",
-  "serialNumber": "urn:uuid:a1b2c3d4-0000-0000-0000-000000000001",
-  "version": 1,
-  "vulnerabilities": [
-    {
-      "id": "CVE-2024-12345",
-      "source": { "name": "NVD", "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-12345" },
-      "ratings": [{ "source": { "name": "NVD" }, "severity": "high" }],
-      "affects": [
-        {
-          "ref": "pkg:npm/vulnerable-lib@1.2.3",
-          "versions": [{ "version": "1.2.3", "status": "affected" }]
-        }
-      ],
-      "analysis": {
-        "state": "not_affected",
-        "justification": "vulnerable_code_not_in_execute_path",
-        "detail": "The vulnerable function parseXML() is imported but never called. The application uses JSON exclusively for data exchange."
-      }
-    }
-  ]
-}
-```
-{{< /tab >}}
-{{< tab name="fixed" >}}
-```json
-{
-  "bomFormat": "CycloneDX",
-  "specVersion": "1.6",
-  "vulnerabilities": [
-    {
-      "id": "CVE-2024-12345",
-      "affects": [
-        {
-          "ref": "pkg:npm/vulnerable-lib@1.2.3",
-          "versions": [{ "version": "1.2.3", "status": "affected" }]
-        }
-      ],
-      "analysis": {
-        "state": "fixed",
-        "detail": "Upgraded to vulnerable-lib@1.2.4 in commit abc1234. See merge request !42."
-      }
-    }
-  ]
-}
-```
-{{< /tab >}}
-{{< tab name="workaround" >}}
-```json
-{
-  "bomFormat": "CycloneDX",
-  "specVersion": "1.6",
-  "vulnerabilities": [
-    {
-      "id": "CVE-2024-12345",
-      "affects": [
-        {
-          "ref": "pkg:npm/vulnerable-lib@1.2.3",
-          "versions": [{ "version": "1.2.3", "status": "affected" }]
-        }
-      ],
-      "analysis": {
-        "state": "affected",
-        "response": ["workaround_available"],
-        "detail": "ModSecurity rule 10001 blocks the path traversal vector. Rule deployed to production WAF on 2026-05-14. Patch upgrade tracked in issue #99."
-      }
-    }
-  ]
-}
-```
-{{< /tab >}}
-{{< /tabs >}}
+A short decision rule:
 
-### OpenVEX
+{{< decision >}}
+Does the finding name a component that appears in your SBOM (a library, a package, an OS-level dependency, a container layer)?
+  ├─ Yes → CycloneDX VEX, referencing the component by PURL
+  └─ No  → OpenVEX, with the repo or service as the subject
 
-OpenVEX is a lightweight, standalone VEX format defined by the OpenVEX specification. It does not require an SBOM to be useful.
+If the same finding has both a packaged-component angle (the vulnerable library) and a runtime mitigation (a WAF rule that blocks the vector):
+  ├─ Write the CycloneDX VEX entry for the component, status `affected` with `workaround_available`
+  └─ Optionally write a parallel OpenVEX statement against the deployed service for SOC tooling that consumes OpenVEX
+{{< /decision >}}
 
-**Use OpenVEX when** the finding is not tied to a component in your SBOM. Examples:
-
-- A SAST finding in your own code
-- A secret detected in a commit
-- A vulnerability mitigated by a WAF rule, IPS signature, or SIEM detection (where there is no package to upgrade)
-- A finding in a transitive dependency that is not declared in your SBOM
-
-An OpenVEX document contains one or more **statements**, each with:
-
-- A **subject** — the product or component affected (can be a PURL, a CPE, or a free-form identifier)
-- A **vulnerability** — the CVE, GHSA, or internal ID
-- A **status**: `not_affected`, `affected`, `fixed`, or `under_investigation`
-- A **justification** (for `not_affected`): same vocabulary as CycloneDX
-- A **action_statement** — free-text description of what was done
-
-{{< tabs >}}
-{{< tab name="not_affected (SAST)" >}}
-```json
-{
-  "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://github.com/yourorg/yourrepo/vex/2026-05-14-sast-001.json",
-  "author": "developer@example.com",
-  "timestamp": "2026-05-14T10:00:00Z",
-  "version": 1,
-  "statements": [
-    {
-      "vulnerability": { "name": "CWE-89", "description": "SQL Injection — Semgrep finding semgrep-rules:python.flask.sql-injection" },
-      "products": [{ "@id": "https://github.com/yourorg/yourrepo", "identifiers": { "purl": "pkg:github/yourorg/yourrepo@abc1234" } }],
-      "status": "not_affected",
-      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
-      "action_statement": "The flagged query uses a read-only connection pool and the input is validated upstream by a strict allow-list regex. Reviewed in MR !55 on 2026-05-14."
-    }
-  ]
-}
-```
-{{< /tab >}}
-{{< tab name="workaround (WAF)" >}}
-```json
-{
-  "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://github.com/yourorg/yourrepo/vex/2026-05-14-waf-001.json",
-  "author": "developer@example.com",
-  "timestamp": "2026-05-14T10:00:00Z",
-  "version": 1,
-  "statements": [
-    {
-      "vulnerability": { "name": "CVE-2024-12345" },
-      "products": [{ "@id": "https://yourservice.example.com", "identifiers": { "purl": "pkg:generic/yourservice@2.1.0" } }],
-      "status": "affected",
-      "action_statement": "ModSecurity rule 10001 deployed to production WAF on 2026-05-14 blocks the path traversal vector. Patch upgrade planned in sprint 24."
-    }
-  ]
-}
-```
-{{< /tab >}}
-{{< tab name="fixed (secret)" >}}
-```json
-{
-  "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://github.com/yourorg/yourrepo/vex/2026-05-14-secret-001.json",
-  "author": "developer@example.com",
-  "timestamp": "2026-05-14T10:00:00Z",
-  "version": 1,
-  "statements": [
-    {
-      "vulnerability": { "name": "SECRET-DETECT-001", "description": "AWS access key committed in commit def5678" },
-      "products": [{ "@id": "https://github.com/yourorg/yourrepo" }],
-      "status": "fixed",
-      "action_statement": "Key revoked in AWS IAM on 2026-05-14T08:30Z. Secret removed from history via git-filter-repo. New key stored in CI secrets vault only. See incident report INC-2026-042."
-    }
-  ]
-}
-```
-{{< /tab >}}
-{{< /tabs >}}
+In practice most teams pick one format as canonical and only reach for the other when forced. Pick CycloneDX VEX if you already ship an SBOM in CI; pick OpenVEX if you don't, or if your stack is SAST-heavy where most findings sit in first-party code.
 
 ## Why VEX matters to a developer
 
