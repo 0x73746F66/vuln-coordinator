@@ -2,10 +2,13 @@
 <div class="section-hero">
   <div class="section-hero__eyebrow">{{ .Title }}</div>
   <h1 class="section-hero__title">{{ .Title }}</h1>
-  {{ with .Content }}
-    <p class="section-hero__desc">{{ . | plainify | truncate 200 }}</p>
+  {{ with .Description }}
+    <p class="section-hero__desc">{{ . }}</p>
   {{ end }}
 </div>
+{{ with .Content }}
+  <div class="content section-body">{{ . }}</div>
+{{ end }}
 <div class="section-list">
   <div class="section-list__grid">
     {{ range .Pages }}
