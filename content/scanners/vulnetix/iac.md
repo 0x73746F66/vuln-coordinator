@@ -15,6 +15,32 @@ Findings land in `.vulnetix/sast.sarif` with `ruleId: VNX-TF-NNN`. Eight built-i
 
 The standard SARIF location fields point to the `.tf` line. Reading the rule's docs page (`/docs/sast-rules/vnx-tf-NNN/`) gives the Bad / Good example for that specific pattern.
 
+```bash
+# Every IaC finding, with file + line
+jq '.runs[].results[]
+    | select(.ruleId | startswith("VNX-TF-"))
+    | {
+        ruleId,
+        file: .locations[0].physicalLocation.artifactLocation.uri,
+        line: .locations[0].physicalLocation.region.startLine,
+        message: .message.text
+      }' .vulnetix/sast.sarif
+
+# Group by rule for "which misconfigurations are most common in our IaC"
+jq '[.runs[].results[]
+     | select(.ruleId | startswith("VNX-TF-"))
+     | .ruleId]
+    | group_by(.)
+    | map({rule: .[0], count: length})
+    | sort_by(-.count)' .vulnetix/sast.sarif
+
+# All flagged Terraform modules — for splitting work across team
+jq '[.runs[].results[]
+     | select(.ruleId | startswith("VNX-TF-"))
+     | .locations[0].physicalLocation.artifactLocation.uri]
+    | unique' .vulnetix/sast.sarif
+```
+
 ## The eight Terraform rules
 
 Severities and CWE mappings from the Vulnetix docs. Each pattern below has a worked HCL example.

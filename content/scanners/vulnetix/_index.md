@@ -19,18 +19,88 @@ Three artefacts in `.vulnetix/`:
 
 ## What you can act on
 
-From the SBOM:
+Every field below is greppable with `jq` against the artefact. The recipes here are the ones you'll keep reaching for during triage.
+
+### From the SBOM (`.vulnetix/sbom.cdx.json`)
 
 - `components[].purl` — the canonical identity of a component. Use this as `affects[].ref` in CycloneDX VEX.
 - `components[].version`, `components[].hashes[]` — for pinning and integrity.
-- `dependencies[]` — the resolved dependency graph. Walk it backwards to find the top-level dep that pulled in a transitive.
+- `dependencies[]` — the resolved dependency graph as `{ref, dependsOn[]}` records. Walk it backwards to find the top-level dep that pulled in a transitive.
 - `vulnerabilities[]` (when present inline) — Vulnetix-resolved advisory metadata: `id`, `source`, `ratings[]`, `affects[]`, `analysis`.
 
-From the SARIF:
+```bash
+# List every component as {purl, version, name}
+jq '.components[] | {purl, version, name}' .vulnetix/sbom.cdx.json
+
+# Find one specific component by name
+jq '.components[] | select(.name == "log4j-core")' .vulnetix/sbom.cdx.json
+
+# Find every component matching a PURL prefix (e.g. all npm packages)
+jq '.components[] | select(.purl | startswith("pkg:npm/")) | .purl' .vulnetix/sbom.cdx.json
+
+# Walk the dep graph forward — what does X depend on?
+jq --arg ref "log4j-core@2.14.1" \
+   '.dependencies[] | select(.ref == $ref) | .dependsOn' \
+   .vulnetix/sbom.cdx.json
+
+# Walk the dep graph BACKWARD — what pulled X in? (the triage query)
+jq --arg target "log4j-core@2.14.1" \
+   '.dependencies[] | select(.dependsOn | index($target)) | .ref' \
+   .vulnetix/sbom.cdx.json
+
+# List every vulnerability with its severity and the PURLs it affects
+jq '.vulnerabilities[] | {
+      id,
+      severity: .ratings[0].severity,
+      affects: [.affects[].ref]
+    }' .vulnetix/sbom.cdx.json
+
+# Filter to critical only
+jq '.vulnerabilities[] | select(.ratings[]?.severity == "critical")' \
+   .vulnetix/sbom.cdx.json
+
+# All PURLs affected by one specific CVE
+jq --arg cve "CVE-2021-44228" \
+   '.vulnerabilities[] | select(.id == $cve) | .affects[].ref' \
+   .vulnetix/sbom.cdx.json
+```
+
+### From the SARIF (`.vulnetix/sast.sarif`)
 
 - `runs[].results[].ruleId` — the `VNX-<lang>-<n>` identifier. The same ID resolves on [docs.cli.vulnetix.com](https://docs.cli.vulnetix.com/docs/sast-rules/) — the rule page is the source of truth for bad pattern, good pattern, and remediation.
 - `runs[].results[].locations[].physicalLocation.artifactLocation.uri` + `region.startLine` — where in source.
 - `runs[].results[].properties.cwe` — for cross-referencing classifications.
+
+```bash
+# Every finding flattened to {ruleId, level, file, line, message}
+jq '.runs[].results[] | {
+      ruleId,
+      level,
+      file: .locations[0].physicalLocation.artifactLocation.uri,
+      line: .locations[0].physicalLocation.region.startLine,
+      message: .message.text
+    }' .vulnetix/sast.sarif
+
+# Count findings per rule
+jq '[.runs[].results[].ruleId]
+    | group_by(.)
+    | map({rule: .[0], count: length})
+    | sort_by(-.count)' .vulnetix/sast.sarif
+
+# Filter to one rule family (secrets, IaC, containers, language-specific)
+jq '.runs[].results[]
+    | select(.ruleId | startswith("VNX-SEC-"))' .vulnetix/sast.sarif
+
+# Find a specific rule's findings
+jq '.runs[].results[]
+    | select(.ruleId == "VNX-JAVA-001")' .vulnetix/sast.sarif
+
+# Pull CWE classification per finding
+jq '.runs[].results[] | {
+      ruleId,
+      cwe: (.properties.cwe // [])
+    }' .vulnetix/sast.sarif
+```
 
 ## Decision tree
 
@@ -43,12 +113,13 @@ For SCA findings (sourced from `sbom.cdx.json`):
 For SAST / secrets / IaC / Dockerfile findings (sourced from `sast.sarif`):
   → OpenVEX statement, subject is the repo at the scanned commit
 
-For container image-layer findings (when `--enable-containers` resolves an OCI image):
-  → CycloneDX VEX against the layer's PURL when present,
-     OpenVEX when the component lacks a manifest
-
-Is the risk mitigated by a WAF, IPS, or SIEM rule?
-  └─ If yes, status is `affected` with `workaround_available` and the rule reference
+Need a WAF / IPS / SIEM mitigation rather than a code fix?
+  Vulnetix itself can supply the rule:
+    vulnetix vdb traffic-filters <CVE-ID>   # Snort / Suricata IPS signatures per CVE
+    vulnetix vdb snort-rules get <CVE-ID>   # idem, richer filtering on classtype / port / content
+    vulnetix vdb nuclei get <CVE-ID>        # Nuclei templates for exploit verification
+    vulnetix vdb iocs <CVE-ID>              # IOC pivots (IPs, ASNs, ATT&CK techniques)
+  Then: status is `affected` with `workaround_available` and the rule reference
 {{< /decision >}}
 
 ## Category guides

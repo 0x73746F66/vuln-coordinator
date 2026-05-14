@@ -1,16 +1,32 @@
 ---
-title: "Containers — Dockerfile rules + image-layer scanning"
-description: "Triaging VNX-DOCKER-* findings: per-rule fixes, plus how image-layer CVEs cross back into SCA."
+title: "Containers — Dockerfile rules"
+description: "Triaging VNX-DOCKER-* findings: per-rule fixes for the eight built-in Dockerfile rules."
 weight: 40
 ---
 
-Container scanning in Vulnetix splits cleanly along two axes. The Rego rules under `VNX-DOCKER-*` operate on **build-time files** — `Dockerfile`, `Containerfile`, and the `*.dockerfile` / `*.containerfile` variants — and flag the eight common misconfigurations below. The optional image-layer scan resolves an OCI image's manifest into SBOM components, which then triage through the [SCA path](../sca/) like any other dependency.
+Container scanning in Vulnetix evaluates the eight `VNX-DOCKER-*` Rego rules against **build-time files** — `Dockerfile`, `Containerfile`, and the `*.dockerfile` / `*.containerfile` variants. The flag `--enable-containers` turns this on (it's gated, not on-by-default like SCA / SAST / secrets).
+
+Image-layer scanning (extracting packages from a built OCI image and emitting them as SBOM components) is **not part of the current container evaluator**. If you need vulnerability findings against a base-image's `apk` / `deb` / `rpm` packages, run a separate dedicated image scanner — Grype, Trivy, or `vulnetix scan` against an exported root filesystem after `docker export | tar -x`. The findings then triage through the standard [SCA path](../sca/).
 
 ## What container scanning finds
 
-Build-time findings land in `.vulnetix/sast.sarif` with `ruleId: VNX-DOCKER-NNN`. The standard SARIF location fields point to the Dockerfile line.
+Findings land in `.vulnetix/sast.sarif` with `ruleId: VNX-DOCKER-NNN`. The standard SARIF location fields point to the Dockerfile line:
 
-Image-layer findings (when `--enable-containers` resolves a real OCI manifest) appear in `.vulnetix/sbom.cdx.json` as components with PURLs like `pkg:apk/alpine/musl@1.2.4-r2`, `pkg:deb/debian/openssl@3.0.13-1`, or `pkg:oci/nginx@sha256:...`.
+```bash
+# Every VNX-DOCKER-* finding
+jq '.runs[].results[]
+    | select(.ruleId | startswith("VNX-DOCKER-"))
+    | {
+        ruleId,
+        file: .locations[0].physicalLocation.artifactLocation.uri,
+        line: .locations[0].physicalLocation.region.startLine,
+        message: .message.text
+      }' .vulnetix/sast.sarif
+
+# One rule's hits across all Dockerfiles
+jq '.runs[].results[]
+    | select(.ruleId == "VNX-DOCKER-001")' .vulnetix/sast.sarif
+```
 
 ## The eight Dockerfile rules
 
@@ -256,17 +272,6 @@ RUN apt-get update \
 
 Combine. Remove build-time tools (`curl` after the install) before exiting the `RUN`. Discard the package index. Avoid `apt-get clean` standalone — it doesn't run in one-layer images.
 
-## Image-layer scanning crosses into SCA
-
-When `--enable-containers` is set, Vulnetix resolves the OCI image referenced by `FROM` and inventories its packages. The packages appear in `sbom.cdx.json` as components with ecosystem-specific PURLs:
-
-- `pkg:apk/alpine/musl@1.2.4-r2` — Alpine APK
-- `pkg:deb/debian/openssl@3.0.13-1` — Debian dpkg
-- `pkg:rpm/rhel/glibc@2.34-83.el9_2.7` — RHEL RPM
-- `pkg:oci/library/nginx@sha256:...` — the image itself
-
-Vulnerabilities against any of these go to **CycloneDX VEX** like any SCA finding, referencing the same PURL — see the [SCA page](../sca/) for the format details.
-
 ## Worked example: hardening a root container that needs build-time root
 
 The build needs `apt-get install`, which needs root. The runtime doesn't. Solution: multi-stage.
@@ -307,7 +312,7 @@ docker run --rm myapp:test sh        # exec failed — distroless has no shell
 
 ## Producing the VEX
 
-Dockerfile findings (VNX-DOCKER-*) go to **OpenVEX**. Image-layer CVEs against SBOM components go to **CycloneDX VEX**.
+Dockerfile findings (VNX-DOCKER-*) go to **OpenVEX** — the subject is your image's tag / digest. If you also run a separate image scanner against the built image and get base-image CVEs, those are SCA findings against `pkg:apk/...` / `pkg:deb/...` PURLs and go to CycloneDX VEX (see the [SCA page](../sca/)).
 
 {{< outcome type="openvex" >}}
 ```json
@@ -329,28 +334,6 @@ Dockerfile findings (VNX-DOCKER-*) go to **OpenVEX**. Image-layer CVEs against S
       }],
       "status": "fixed",
       "action_statement": "Dockerfile restructured as multi-stage build. Runtime stage uses gcr.io/distroless/python3-debian12:nonroot with USER nonroot. Verified docker run --rm myapp:test id returns uid=65532. See MR !67."
-    }
-  ]
-}
-```
-{{< /outcome >}}
-
-{{< outcome type="cyclonedx" >}}
-```json
-{
-  "vulnerabilities": [
-    {
-      "id": "CVE-2023-50387",
-      "source": { "name": "NVD" },
-      "affects": [{
-        "ref": "pkg:deb/debian/libbind9-9@9.18.19-1~deb12u1",
-        "versions": [{ "version": "9.18.19-1~deb12u1", "status": "affected" }]
-      }],
-      "analysis": {
-        "state": "not_affected",
-        "justification": "code_not_reachable",
-        "detail": "libbind9-9 is in the base image (debian:12.5-slim) but the application uses Python's built-in DNS resolver; no process in the image links against libbind9. Verified with ldd against all binaries in the image and a grep for the symbol."
-      }
     }
   ]
 }

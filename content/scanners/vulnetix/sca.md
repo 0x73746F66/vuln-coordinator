@@ -20,7 +20,46 @@ SCA findings appear in `.vulnetix/sbom.cdx.json`. Two structures matter for tria
 - `hashes[]` — integrity hashes from the registry. Match against the lockfile to detect tampering.
 - `licenses[]` — SPDX identifiers when resolvable.
 
+```bash
+# Every component as {purl, version, type}
+jq '.components[] | {purl, version, type}' .vulnetix/sbom.cdx.json
+
+# One component by name
+jq '.components[] | select(.name == "log4j-core")' .vulnetix/sbom.cdx.json
+
+# All npm components only
+jq '.components[] | select(.purl | startswith("pkg:npm/")) | .purl' \
+   .vulnetix/sbom.cdx.json
+
+# Components missing licence metadata
+jq '.components[] | select(.licenses == null or (.licenses | length == 0)) | .purl' \
+   .vulnetix/sbom.cdx.json
+```
+
 **`dependencies[]`** — the resolved graph as a list of `{ref, dependsOn[]}` records. Walk this backwards from a transitive finding to the top-level dep that pulled it in. The walk is the single most useful triage step in SCA.
+
+```bash
+# Forward walk: what does X depend on?
+jq --arg ref "log4j-core@2.14.1" \
+   '.dependencies[] | select(.ref == $ref) | .dependsOn' \
+   .vulnetix/sbom.cdx.json
+
+# Backward walk: who depends on X? — the canonical triage query
+jq --arg target "log4j-core@2.14.1" \
+   '.dependencies[] | select(.dependsOn | index($target)) | .ref' \
+   .vulnetix/sbom.cdx.json
+
+# Full transitive parentage of X (walk back until you hit a root)
+jq --arg target "log4j-core@2.14.1" '
+  def parents($t):
+    [.dependencies[] | select(.dependsOn | index($t)) | .ref]
+    | unique
+    | if length == 0 then $t
+      else . + (.[] | parents(.) | if type == "array" then . else [.] end)
+      end ;
+  parents($target)
+' .vulnetix/sbom.cdx.json
+```
 
 When vulnerabilities are embedded inline, they appear under `vulnerabilities[]`:
 
@@ -29,6 +68,32 @@ When vulnerabilities are embedded inline, they appear under `vulnerabilities[]`:
 - `ratings[]` — severity, optionally with CVSS vector.
 - `affects[].ref` — the affected component's `bom-ref` (resolves to a PURL).
 - `analysis` — Vulnetix's own assessment when one is available; if present, it's a starting point, not the final word.
+
+```bash
+# Every vuln with severity + affected PURLs
+jq '.vulnerabilities[] | {
+      id,
+      severity: .ratings[0].severity,
+      affects: [.affects[].ref]
+    }' .vulnetix/sbom.cdx.json
+
+# Critical only
+jq '.vulnerabilities[] | select(.ratings[]?.severity == "critical") | .id' \
+   .vulnetix/sbom.cdx.json
+
+# Group by severity for a triage queue
+jq '[.vulnerabilities[]
+     | {id, severity: .ratings[0].severity}]
+    | group_by(.severity)
+    | map({severity: .[0].severity, count: length, ids: [.[].id]})' \
+   .vulnetix/sbom.cdx.json
+
+# Vulns Vulnetix already has an analysis on
+jq '.vulnerabilities[]
+    | select(.analysis != null)
+    | {id, state: .analysis.state, justification: .analysis.justification}' \
+   .vulnetix/sbom.cdx.json
+```
 
 ### Gating signals to read first
 
@@ -44,14 +109,60 @@ Vulnetix's CI flags double as triage signals. If the scan failed because of one 
 
 ## From finding to root cause
 
-The universal six-step path:
+The universal six-step path, each step with the exact `jq` or CLI to run.
 
-1. **Read the PURL from the SBOM entry.** That's your component identity.
-2. **Walk `dependencies[]` backwards** to find the top-level declared dep that pulled the affected component in. The path tells you whether you can upgrade a direct dep to fix the issue or whether you need transitive coercion.
-3. **`vulnetix vdb vuln <CVE-ID>`** — fetch the full advisory: CVSS, EPSS, KEV status, references. EPSS over ~0.1 and KEV-listed both mean "treat as urgent".
-4. **`vulnetix vdb fixes <CVE-ID>`** — list available patches and workarounds per registry, with exploit maturity.
-5. **`vulnetix vdb remediation plan --purl <purl> --current-version <ver> --include-guidance --include-verification-steps`** — context-aware fix recommendation with the exact upgrade path and verification steps.
-6. **Decide reachability.** If the vulnerable function in the dep isn't reachable from your code, `not_affected` is honest and durable. If it is, upgrade or mitigate, then `resolved` / `exploitable + workaround_available`.
+```bash
+# Step 1 — read the PURL for one finding (start with the first critical)
+jq -r '.vulnerabilities[]
+       | select(.ratings[]?.severity == "critical")
+       | .affects[0].ref' .vulnetix/sbom.cdx.json | head -1
+# e.g. "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
+
+# Step 2 — backward-walk the dep graph to find the declared top-level
+PURL="pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
+jq --arg p "$PURL" '
+  .components[] as $c
+  | select($c.purl == $p)
+  | .["bom-ref"]
+' .vulnetix/sbom.cdx.json
+# Then feed that bom-ref to the backward-walk query in the previous section.
+
+# Step 3 — full advisory (CVSS, EPSS, KEV)
+vulnetix vdb vuln CVE-2021-44228
+
+# Step 4 — patches and workarounds per registry, with exploit maturity
+vulnetix vdb fixes CVE-2021-44228
+
+# Step 5 — context-aware fix recommendation
+vulnetix vdb remediation plan \
+  --purl "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1" \
+  --current-version 2.14.1 \
+  --include-guidance \
+  --include-verification-steps
+
+# Step 6 — reachability check (see the per-language section below),
+# then produce the VEX statement.
+```
+
+If a code-level fix isn't immediately possible — patch is pending, transitive coercion has compatibility risk, the dep is part of a frozen vendor binary — the Vulnetix CLI itself can supply the mitigating rules so you don't have to author them from scratch:
+
+```bash
+# Snort / Suricata signatures attached to the CVE
+vulnetix vdb traffic-filters CVE-2021-44228
+vulnetix vdb snort-rules get CVE-2021-44228 --format rules > log4shell.rules
+
+# Nuclei templates to verify an exploit is reachable from outside the WAF
+vulnetix vdb nuclei get CVE-2021-44228 --format yaml > log4shell.yaml
+nuclei -t log4shell.yaml -u https://staging.example.com
+
+# IOC pivots — IPs, ASNs, ATT&CK techniques observed exploiting the CVE
+vulnetix vdb iocs CVE-2021-44228
+vulnetix vdb iocs list --cve-id CVE-2021-44228 --format stix > log4shell.stix.json
+```
+
+Deploy the rule, run the Nuclei template against staging to confirm the WAF blocks the attack vector, then write the CycloneDX VEX with `analysis.response: ["workaround_available"]` and reference the rule ID in `analysis.detail`.
+
+Decision criteria for step 6: if the vulnerable function in the dep isn't reachable from your code, `not_affected` is honest and durable. If it is, upgrade or mitigate, then `resolved` / `exploitable + workaround_available`.
 
 ## Lockfile mechanics during patching — by package manager
 
@@ -540,7 +651,7 @@ The bar is *evidence*, not certainty — auditors and future-you both want to se
 
 ## Worked example: CVE-2021-44228 (Log4Shell)
 
-Vulnetix output includes:
+The shape of the relevant slice of `.vulnetix/sbom.cdx.json`:
 
 ```json
 {
@@ -556,6 +667,30 @@ Vulnetix output includes:
     { "id": "CVE-2021-44228", "affects": [{ "ref": "log4j-core@2.14.1" }] }
   ]
 }
+```
+
+Extract the chain from the real artefact:
+
+```bash
+# Confirm the finding is present
+jq '.vulnerabilities[] | select(.id == "CVE-2021-44228")' .vulnetix/sbom.cdx.json
+
+# Trace the chain up to the root
+jq --arg target "log4j-core@2.14.1" '
+  def ancestors($t):
+    .dependencies[]
+    | select(.dependsOn | index($t))
+    | .ref ;
+  [ancestors($target)]
+' .vulnetix/sbom.cdx.json
+# → ["spring-boot-starter-logging@2.5.6"]
+
+# Run again with the parent to keep walking
+jq --arg target "spring-boot-starter-logging@2.5.6" '
+  [.dependencies[] | select(.dependsOn | index($target)) | .ref]
+' .vulnetix/sbom.cdx.json
+# → ["spring-boot-starter-web@2.5.6"]
+# → eventually reaches "myapp@1.0.0" (your top-level)
 ```
 
 Two coercion paths:
@@ -592,17 +727,65 @@ This pins log4j-core even when Spring Boot's BOM resolves an older version. Use 
 {{< /tab >}}
 {{< /tabs >}}
 
-Reachability check before deciding: does the app use Log4j at all in a way that takes user-controlled input?
+Now build the reachability check. The right starting point is what Vulnetix itself knows about the vuln — pull the structured intel and find the affected class/function name to grep for.
 
 ```bash
-# Static: is JndiLookup in the runtime classpath?
-jdeps --multi-release 17 --print-module-deps target/myapp.jar | grep -i jndi
+# Fetch the full advisory enrichment
+vulnetix vdb vuln CVE-2021-44228 --output json > /tmp/cve.json
 
-# Source-level: do we log anything from request data without scrubbing?
-git grep -n 'logger\.\(info\|warn\|error\)\(.*request\|.*req\.\|.*input\)' src/main/java/
+# Severity + KEV + EPSS in one shot (the "is this urgent?" view)
+jq '.[0].containers.adp[0] | {
+      exploitation: .x_exploitationMaturity.level,
+      epss: .x_exploitationMaturity.factors.epss,
+      kev_listed: .x_kev.knownRansomwareCampaignUse,
+      ssvc: .x_ssvc.decision,
+      attack_surface: .x_attackSurface.reasoning,
+      cwes: .x_kev.cwes
+    }' /tmp/cve.json
+# →  {
+#      "exploitation": "ACTIVE",
+#      "epss": 0.94,
+#      "kev_listed": "Known",
+#      "ssvc": "Act",
+#      "attack_surface": "Remotely exploitable; Low complexity; No privileges; No user interaction",
+#      "cwes": ["CWE-20", "CWE-400", "CWE-502"]
+#    }
+
+# Pull the patch PR — the source of truth for which class/method changed
+vulnetix vdb fixes CVE-2021-44228 --output json > /tmp/fixes.json
+
+# Source-code patches (the URLs whose diffs name the affected class)
+jq '.fixes.sourceCode[] | select(.type == "pr") | .url' /tmp/fixes.json | sort -u
+# →  "https://github.com/apache/logging-log4j2/pull/608"
+#    "https://github.com/github/advisory-database/pull/5501"
+
+# CWE-keyed remediation guidance
+jq '.cweRemediations[]' /tmp/fixes.json
+# →  "Mitigate CWE-917: Review and apply appropriate controls"
+
+# KEV-required action (CISA's official wording — useful for tickets / compliance)
+jq -r '.kevRequiredAction' /tmp/fixes.json
 ```
 
-If the app uses Logback (Spring Boot's default) and log4j-core is only on the classpath as a transitive, the `JndiLookup` is never instantiated — `vulnerable_code_not_in_execute_path` is honest.
+Read the linked patch PR (`apache/logging-log4j2#608`); it names `org.apache.logging.log4j.core.lookup.JndiLookup` as the class to gate behind a `formatMsgNoLookups=true` flag. That class name is what you grep your codebase for:
+
+```bash
+# Static: is JndiLookup actually reachable from your built artefact?
+jdeps --multi-release 17 --print-module-deps target/myapp.jar 2>&1 \
+  | grep -i 'log4j.core.lookup'
+
+# Source-level: do you log anything from request data without scrubbing?
+git grep -nE 'logger\.(info|warn|error|debug|trace)\([^)]*(request|req\.|input|userAgent|param)' \
+  src/main/java/
+
+# Find any log4j2.properties / log4j2.xml that set formatMsgNoLookups
+git grep -nE 'formatMsgNoLookups|log4j2.formatMsgNoLookups' .
+
+# Did the build's log4j-core actually load? (CycloneDX dependencies graph)
+jq '.dependencies[] | select(.dependsOn | index("log4j-core@2.14.1"))' .vulnetix/sbom.cdx.json
+```
+
+If the app uses Logback (Spring Boot's default) and log4j-core is only on the classpath as a transitive — `JndiLookup` never instantiated, no `lookup()` call site reachable from request input — `vulnerable_code_not_in_execute_path` is honest. The grep evidence + the jdeps output is what goes in the `analysis.detail` of the VEX.
 
 {{< outcome type="cyclonedx" >}}
 ```json
@@ -629,7 +812,18 @@ If the app uses Logback (Spring Boot's default) and log4j-core is only on the cl
 
 ## Worked example: CVE-2022-23541 (jsonwebtoken)
 
-Vulnetix flags `pkg:npm/jsonwebtoken@8.5.1`. `npm ls jsonwebtoken` shows three paths into the graph:
+Vulnetix flags `pkg:npm/jsonwebtoken@8.5.1`. Confirm and trace from the SBOM:
+
+```bash
+jq '.vulnerabilities[] | select(.id == "CVE-2022-23541")' .vulnetix/sbom.cdx.json
+
+# Every direct parent of jsonwebtoken@8.5.1
+jq --arg target "jsonwebtoken@8.5.1" \
+   '[.dependencies[] | select(.dependsOn | index($target)) | .ref]' \
+   .vulnetix/sbom.cdx.json
+```
+
+`npm ls jsonwebtoken` confirms the same paths in human-readable form:
 
 ```
 yourapp@1.0.0

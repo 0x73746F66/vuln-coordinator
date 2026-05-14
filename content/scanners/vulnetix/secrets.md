@@ -8,7 +8,39 @@ A secret finding is almost always an incident, not a backlog item. The order of 
 
 ## What the secrets evaluator finds
 
-The Vulnetix secrets evaluator runs 32 built-in rules (`VNX-SEC-001` through `VNX-SEC-032`) against every file in scope. Findings land in `.vulnetix/sast.sarif` alongside SAST results, distinguished by the rule ID. The categories from the Vulnetix docs:
+The Vulnetix secrets evaluator runs 32 built-in rules (`VNX-SEC-001` through `VNX-SEC-032`) against every file in scope. Findings land in `.vulnetix/sast.sarif` alongside SAST results, distinguished by the rule ID.
+
+```bash
+# Every secret finding, with file + line
+jq '.runs[].results[]
+    | select(.ruleId | startswith("VNX-SEC-"))
+    | {
+        ruleId,
+        file: .locations[0].physicalLocation.artifactLocation.uri,
+        line: .locations[0].physicalLocation.region.startLine,
+        message: .message.text
+      }' .vulnetix/sast.sarif
+
+# Group by secret type for a triage queue
+jq '[.runs[].results[]
+     | select(.ruleId | startswith("VNX-SEC-"))
+     | .ruleId]
+    | group_by(.)
+    | map({rule: .[0], count: length})
+    | sort_by(-.count)' .vulnetix/sast.sarif
+
+# Just one rule's hits (e.g. AWS keys)
+jq '.runs[].results[] | select(.ruleId == "VNX-SEC-001")' \
+   .vulnetix/sast.sarif
+
+# All files containing any secret — for the rotation work plan
+jq '[.runs[].results[]
+     | select(.ruleId | startswith("VNX-SEC-"))
+     | .locations[0].physicalLocation.artifactLocation.uri] | unique' \
+   .vulnetix/sast.sarif
+```
+
+The categories from the Vulnetix docs:
 
 - **Cloud providers** — AWS access key + secret, Azure storage credentials, GCP service accounts.
 - **Version control** — GitHub tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_`), GitLab tokens.

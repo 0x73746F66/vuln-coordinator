@@ -8,7 +8,42 @@ Licence compliance isn't a security finding in the CVE sense, but it sits in the
 
 ## What the licence evaluator finds
 
-Findings land in `.vulnetix/sbom.cdx.json` (as enriched component metadata) and — when severity gates apply — in the SARIF output as well. Five finding types:
+Findings merge into `.vulnetix/sbom.cdx.json` under the `vulnerabilities[]` array, with `source.name: "vulnetix-license-analyzer"` distinguishing them from CVE findings.
+
+```bash
+# Every licence finding
+jq '.vulnerabilities[]
+    | select(.source.name == "vulnetix-license-analyzer")' \
+   .vulnetix/sbom.cdx.json
+
+# Group by finding type (unknown / deprecated / copyleft / conflict / not-in-allowlist)
+jq '[.vulnerabilities[]
+     | select(.source.name == "vulnetix-license-analyzer")
+     | .id]
+    | group_by(.)
+    | map({finding: .[0], count: length})
+    | sort_by(-.count)' .vulnetix/sbom.cdx.json
+
+# Components flagged as copyleft-in-production with their PURLs
+jq '.vulnerabilities[]
+    | select(.source.name == "vulnetix-license-analyzer")
+    | select(.id == "copyleft-in-production")
+    | {id, affects: [.affects[].ref]}' .vulnetix/sbom.cdx.json
+
+# Components with no detected licence
+jq '.components[]
+    | select(.licenses == null or (.licenses | length == 0))
+    | {purl, name, version}' .vulnetix/sbom.cdx.json
+
+# Licence distribution across the dependency graph
+jq '[.components[]
+     | .licenses[]?.license.id // .licenses[]?.expression // "unknown"]
+    | group_by(.)
+    | map({licence: .[0], count: length})
+    | sort_by(-.count)' .vulnetix/sbom.cdx.json
+```
+
+Five finding types:
 
 | Finding | Severity | Trigger |
 |---|---|---|

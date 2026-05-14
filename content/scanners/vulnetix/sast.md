@@ -19,6 +19,53 @@ The `.vulnetix/sast.sarif` artefact carries every code-level finding. Each `runs
 
 The rule namespace spans 19 categories. Languages: Android, Bash, C, C#, Go, GraphQL, Java, Kotlin, Node.js, PHP, Python, Ruby, Rust, Swift, plus cross-cutting families: Crypto (`VNX-CRYPTO-*`), JWT (`VNX-JWT-*`), LLM (`VNX-LLM-*`), Docker (`VNX-DOCKER-*`), Terraform (`VNX-TF-*`), Secrets (`VNX-SEC-*`). The full list is at [docs.cli.vulnetix.com/docs/sast-rules](https://docs.cli.vulnetix.com/docs/sast-rules/).
 
+### Querying the SARIF with jq
+
+```bash
+# Every finding as {ruleId, level, file, line, message}
+jq '.runs[].results[] | {
+      ruleId,
+      level,
+      file: .locations[0].physicalLocation.artifactLocation.uri,
+      line: .locations[0].physicalLocation.region.startLine,
+      message: .message.text
+    }' .vulnetix/sast.sarif
+
+# Findings filtered to a language family (Java, Python, Node, Go, ...)
+jq '.runs[].results[] | select(.ruleId | startswith("VNX-JAVA-"))' \
+   .vulnetix/sast.sarif
+
+# One specific rule's hits
+jq '.runs[].results[] | select(.ruleId == "VNX-JAVA-001")' \
+   .vulnetix/sast.sarif
+
+# Count findings per rule, sorted descending
+jq '[.runs[].results[].ruleId]
+    | group_by(.)
+    | map({rule: .[0], count: length})
+    | sort_by(-.count)' .vulnetix/sast.sarif
+
+# Findings grouped by file (where to spend the next 30 minutes)
+jq '[.runs[].results[]
+     | {ruleId, file: .locations[0].physicalLocation.artifactLocation.uri}]
+    | group_by(.file)
+    | map({file: .[0].file, rules: [.[].ruleId]})' \
+   .vulnetix/sast.sarif
+
+# Pull rule+CWE for a CWE-oriented triage queue
+jq '.runs[].results[] | {
+      ruleId,
+      cwe: (.properties.cwe // [])
+    }' .vulnetix/sast.sarif
+
+# Stable fingerprints — track the same finding across commits
+jq '.runs[].results[] | {
+      fp: .partialFingerprints,
+      ruleId,
+      file: .locations[0].physicalLocation.artifactLocation.uri
+    }' .vulnetix/sast.sarif
+```
+
 ## The triage path
 
 1. **Read the rule ID and CWE** from the SARIF entry.
