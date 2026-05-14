@@ -5,7 +5,7 @@ weight: 5
 layout: single
 ---
 
-> **Commercial** (Vulnetix) · [CLI docs](https://docs.cli.vulnetix.com/) · [Product](https://www.vulnetix.com/) · Free tier with community Vulnerability Database access; paid plans for full VDB rate limits and Engineer Triage / cloud features.
+> **OSS** (AGPL-3.0) · [Vulnetix/cli](https://github.com/Vulnetix/cli) · [CLI docs](https://docs.cli.vulnetix.com/) · Maintained by [Vulnetix](https://www.vulnetix.com/), whose other AppSec products are commercial; the CLI itself is open source · Free Community VDB access; paid VDB plans for higher rate limits.
 
 ## What Vulnetix does
 
