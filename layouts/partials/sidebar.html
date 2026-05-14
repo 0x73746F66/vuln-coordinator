@@ -1,0 +1,30 @@
+<aside class="sidebar">
+  {{ $currentPage := . }}
+
+  <div class="sidebar__section">
+    <div class="sidebar__heading">Scanners</div>
+    {{ range (where .Site.Pages "Section" "scanners") | first 1 }}
+      {{ $section := . }}
+    {{ end }}
+    {{ range where .Site.RegularPages "Section" "scanners" }}
+      <a class="sidebar__link{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
+         href="{{ .RelPermalink }}">{{ .Title }}</a>
+    {{ end }}
+  </div>
+
+  <div class="sidebar__section">
+    <div class="sidebar__heading">Rules writing</div>
+    {{ range where .Site.RegularPages "Section" "rules" }}
+      <a class="sidebar__link{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
+         href="{{ .RelPermalink }}">{{ .Title }}</a>
+    {{ end }}
+  </div>
+
+  <div class="sidebar__section">
+    <div class="sidebar__heading">Appendices</div>
+    {{ range where .Site.RegularPages "Section" "appendices" }}
+      <a class="sidebar__link{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
+         href="{{ .RelPermalink }}">{{ .Title }}</a>
+    {{ end }}
+  </div>
+</aside>

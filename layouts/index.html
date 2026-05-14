@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  {{ partial "head.html" . }}
+</head>
+<body>
+  {{ partial "nav.html" . }}
+
+  <main>
+    <!-- Hero -->
+    <section class="home-hero">
+      <p class="home-hero__eyebrow">Vulnerability Management</p>
+      <h1 class="home-hero__title">Turn scanner output into verifiable security attestations.</h1>
+      <p class="home-hero__sub">Practical guides for developers: read the report, decide the action, produce the correct CycloneDX VEX or OpenVEX statement.</p>
+      <div class="home-disclaimer">
+        <strong>Scope notice:</strong> {{ .Site.Params.disclaimer }}
+      </div>
+    </section>
+
+    <!-- TOC -->
+    <section class="home-toc">
+      <div class="home-toc__inner">
+
+        <!-- Scanners -->
+        <div class="home-toc__section-label">Scanner guides</div>
+        <h2 class="home-toc__section-title">Read the report. Take action.</h2>
+        <p class="home-toc__section-desc">Each guide covers a specific scanner: how to read its output, a decision tree to determine the right attestation type, and example CycloneDX VEX or OpenVEX statements.</p>
+        <div class="home-toc__grid">
+          {{ range where .Site.RegularPages "Section" "scanners" }}
+            <a class="toc-card" href="{{ .RelPermalink }}">
+              <div class="toc-card__title">{{ .Title }}</div>
+              {{ with .Description }}<div class="toc-card__desc">{{ . }}</div>{{ end }}
+            </a>
+          {{ end }}
+        </div>
+
+        <!-- Rules -->
+        <div class="home-toc__section-label">Rules writing</div>
+        <h2 class="home-toc__section-title">Mitigations that prove their worth.</h2>
+        <p class="home-toc__section-desc">When a finding is mitigated by a WAF rule, IPS signature, detection rule, or SIEM alert, you need to document it. These guides explain how to write the rule and reference it in a VEX statement.</p>
+        <div class="home-toc__grid">
+          {{ range where .Site.RegularPages "Section" "rules" }}
+            <a class="toc-card" href="{{ .RelPermalink }}">
+              <div class="toc-card__title">{{ .Title }}</div>
+              {{ with .Description }}<div class="toc-card__desc">{{ . }}</div>{{ end }}
+            </a>
+          {{ end }}
+        </div>
+
+        <!-- Appendices -->
+        <div class="home-toc__section-label">Appendices</div>
+        <h2 class="home-toc__section-title">The foundations.</h2>
+        <p class="home-toc__section-desc">Background on CycloneDX SBOMs and VEX statements — what they are, why they exist, and why producing them during normal development flow saves everyone time.</p>
+        <div class="home-toc__grid">
+          {{ range where .Site.RegularPages "Section" "appendices" }}
+            <a class="toc-card" href="{{ .RelPermalink }}">
+              <div class="toc-card__title">{{ .Title }}</div>
+              {{ with .Description }}<div class="toc-card__desc">{{ . }}</div>{{ end }}
+            </a>
+          {{ end }}
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  {{ partial "footer.html" . }}
+</body>
+</html>

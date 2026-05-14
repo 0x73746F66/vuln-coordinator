@@ -1,0 +1,17 @@
+baseURL  = "https://0x73746F66.github.io/vuln-coordinator/"
+title    = "Vulnerability Management Guide"
+languageCode = "en-gb"
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.highlight]
+  style            = "monokai"
+  lineNos          = false
+  codeFences       = true
+  guessSyntax      = true
+  noClasses        = true
+
+[params]
+  description = "Practical guides for developers: turn scanner output into verifiable security attestations using CycloneDX VEX and OpenVEX."
+  disclaimer  = "These guides assume GitLab (project / sub-group hierarchy) or GitHub. \"Merge request\" refers to what GitHub calls a pull request. All CI examples use shell commands in a pipeline file (gitlab-ci.yml or a GitHub Actions run: step) — no vendor plugins — so they work regardless of which tools your pipeline uses."

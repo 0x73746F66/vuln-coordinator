@@ -1,0 +1,27 @@
+{{ $id := printf "tabs-%d" now.UnixNano }}
+<div class="tabs-wrap js-tabs" id="{{ $id }}">
+  <div class="tabs-strip js-tabs-strip"></div>
+  <div class="tabs-panels js-tabs-panels">
+    {{ .Inner }}
+  </div>
+</div>
+<script>
+(function() {
+  var wrap = document.getElementById("{{ $id }}");
+  var strip = wrap.querySelector(".js-tabs-strip");
+  var panels = wrap.querySelectorAll(".tab-panel");
+  panels.forEach(function(panel, i) {
+    var btn = document.createElement("button");
+    btn.textContent = panel.dataset.name;
+    btn.className = "tabs-tab-btn" + (i === 0 ? " active" : "");
+    btn.addEventListener("click", function() {
+      panels.forEach(function(p) { p.style.display = "none"; });
+      strip.querySelectorAll(".tabs-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+      panel.style.display = "block";
+      btn.classList.add("active");
+    });
+    strip.appendChild(btn);
+    panel.style.display = i === 0 ? "block" : "none";
+  });
+})();
+</script>

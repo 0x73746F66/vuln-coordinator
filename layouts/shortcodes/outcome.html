@@ -1,0 +1,6 @@
+{{ $type := .Get "type" | default "cyclonedx" }}
+{{ $label := cond (eq $type "cyclonedx") "CycloneDX VEX outcome" "OpenVEX outcome" }}
+<div class="outcome-card outcome-card--{{ $type }}">
+  <div class="outcome-card__label">{{ $label }}</div>
+  {{ .Inner | markdownify }}
+</div>
