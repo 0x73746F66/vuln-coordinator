@@ -1,16 +1,16 @@
 ---
 title: "Snort — IPS"
-description: "Write Snort rules to detect and block network-level exploitation attempts, then reference them in a VEX statement."
+description: "Block the exploit packet at the network edge, then attest to the mitigation in OpenVEX."
 weight: 20
 ---
 
-## Overview
+## What Snort does
 
-Snort is an open-source intrusion prevention system (IPS). Rules written in the Snort rule language inspect network traffic and can alert on or block packets that match known exploit patterns.
+Snort sits in the network path — inline as an IPS or out-of-band as an IDS — and matches packets against rules written in the Snort rule language. A rule that matches can pass the traffic, log it, alert on it, or drop it.
 
-When a vulnerability in a service you operate is mitigated by a Snort rule — blocking the network vector an attacker would use — that mitigation can be documented in an OpenVEX statement. The Snort rule SID becomes the reference evidence.
+For vulnerability management the angle is narrow. When the exploit for a CVE has a recognisable wire signature — a specific URI fragment, header, payload, or protocol misuse — a Snort rule that drops the traffic before it reaches the vulnerable service is a valid mitigation. The Snort SID and the deployment location become the evidence in an OpenVEX statement.
 
-**Outcome type:** OpenVEX — IPS rules are not SBOM components.
+IPS rules aren't SBOM components, so the attestation is always OpenVEX.
 
 ## Rule structure
 

@@ -1,38 +1,39 @@
 ---
 title: "GitHub Dependabot"
-description: "Automated dependency vulnerability alerts and security updates."
+description: "Dependency alerts and automated upgrade pull requests, driven by the GitHub Advisory Database."
 weight: 60
 ---
 
-## Overview
+## What Dependabot does
 
-<!-- TODO: What this scanner analyses, what it produces, how developers encounter it in CI or merge request workflows. -->
+<!-- TODO: One paragraph. Dependabot watches the dependency graph (extracted from manifest files in your repo) and matches it against the GitHub Advisory Database. It surfaces in three places: the Security tab as Dependabot alerts, automatic upgrade MRs that bump the lockfile, and the `dependabot-action` GraphQL API for programmatic access. -->
 
-## Reading the report
+## Reading the output
 
-### Report format
+<!-- TODO: For VEX work the canonical source is the GraphQL `repository.vulnerabilityAlerts` endpoint, or `gh api graphql -f query='...'`. The Security tab and the auto-generated upgrade MRs are UI views over the same data. Show what one `vulnerabilityAlert` node looks like. -->
 
-<!-- TODO: Output format (JSON, SARIF, table). Where to find the output in the pipeline or merge request. Key fields that drive triage. -->
+## What you can act on
 
-### Key fields
-
-<!-- TODO: The specific fields needed to identify the component/finding, severity, and affected version. -->
+<!-- TODO: `securityVulnerability.advisory.ghsaId` + `.identifiers[].value` (GHSA + CVE), `securityVulnerability.package.name`, `vulnerableManifestPath`, `securityVulnerability.firstPatchedVersion.identifier`, `securityVulnerability.severity`. -->
 
 ## Decision tree
 
-{{</* decision */>}}
-Is the affected component declared in your SBOM?
-  ├─ Yes → CycloneDX VEX
-  └─ No  → OpenVEX
+{{< decision >}}
+Is the vulnerable package declared in your SBOM?
+  ├─ Yes → CycloneDX VEX entry referencing the PURL
+  └─ No  → OpenVEX statement (transitive not in SBOM, or dev-only dep)
 
-Is the finding mitigated by a WAF / IPS rule or SIEM detection?
-  └─ Yes → OpenVEX with workaround_available + rule reference
-{{</* /decision */>}}
+Has the auto-upgrade MR been merged?
+  └─ If yes, the matching VEX entry sets `analysis.state: fixed` and the merge commit becomes the action evidence
 
-## CycloneDX VEX outcome
+Is the risk mitigated by a WAF, IPS, or SIEM rule?
+  └─ If yes, status is `affected` with `workaround_available` and the rule reference
+{{< /decision >}}
 
-<!-- TODO: When to use CycloneDX VEX for this scanner's output. Example VEX document fragment. -->
+## Producing a CycloneDX VEX
 
-## OpenVEX outcome
+<!-- TODO: Worked example. Dependabot's GHSA + CVE both go into `vulnerabilities[].id` and `.references[]`. Reference the PURL from your SBOM. -->
 
-<!-- TODO: When to use OpenVEX for this scanner's output. Example OpenVEX document. -->
+## Producing an OpenVEX
+
+<!-- TODO: Worked example for dev-only deps (the SBOM is production-only) or accepted risks. Subject is the repo; vulnerability is the GHSA; action_statement references the Dependabot alert URL. -->

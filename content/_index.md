@@ -1,4 +1,4 @@
 ---
 title: "Vulnerability Management Guide"
-description: "Practical guides for developers: turn scanner output into verifiable security attestations using CycloneDX VEX and OpenVEX."
+description: "Decide each scanner finding once, record it as a CycloneDX VEX or OpenVEX attestation, and stop re-litigating the same CVEs."
 ---

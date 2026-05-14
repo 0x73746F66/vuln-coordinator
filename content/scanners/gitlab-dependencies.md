@@ -1,38 +1,36 @@
 ---
 title: "GitLab Dependency Scanning"
-description: "Dependency vulnerability scanning via GitLab's built-in CI scanner."
+description: "GitLab's built-in dependency scanner — runs on every pipeline, surfaces in the MR."
 weight: 30
 ---
 
-## Overview
+## What GitLab Dependency Scanning does
 
-<!-- TODO: What this scanner analyses, what it produces, how developers encounter it in CI or merge request workflows. -->
+<!-- TODO: One paragraph. GitLab's Dependency Scanning job (part of the Secure stage) resolves manifest files in the repo, queries the GitLab Advisory Database, and writes a `gl-dependency-scanning-report.json` artefact. Findings surface in the MR widget, the security dashboard, and the vulnerability report. -->
 
-## Reading the report
+## Reading the output
 
-### Report format
+<!-- TODO: The `gl-dependency-scanning-report.json` artefact is the canonical source. The MR widget is a UI summary on top. Show one `vulnerabilities[]` entry, which carries `cve`, `id`, `category: "dependency_scanning"`, `location.dependency.package.name` + `.version`, `severity`, and `solution`. -->
 
-<!-- TODO: Output format (JSON, SARIF, table). Where to find the output in the pipeline or merge request. Key fields that drive triage. -->
+## What you can act on
 
-### Key fields
-
-<!-- TODO: The specific fields needed to identify the component/finding, severity, and affected version. -->
+<!-- TODO: `vulnerabilities[].cve` or `.identifiers[]` for the canonical ID, `location.dependency.package.name` + `.version` for the affected component, `severity`, `solution` (often a target version), `location.file` for the manifest. -->
 
 ## Decision tree
 
-{{</* decision */>}}
-Is the affected component declared in your SBOM?
-  ├─ Yes → CycloneDX VEX
-  └─ No  → OpenVEX
+{{< decision >}}
+Is the vulnerable package declared in your SBOM?
+  ├─ Yes → CycloneDX VEX entry referencing the PURL
+  └─ No  → OpenVEX statement (lockfile-resolved transitive not in SBOM)
 
-Is the finding mitigated by a WAF / IPS rule or SIEM detection?
-  └─ Yes → OpenVEX with workaround_available + rule reference
-{{</* /decision */>}}
+Is the risk mitigated by a WAF, IPS, or SIEM rule?
+  └─ If yes, status is `affected` with `workaround_available` and the rule reference
+{{< /decision >}}
 
-## CycloneDX VEX outcome
+## Producing a CycloneDX VEX
 
-<!-- TODO: When to use CycloneDX VEX for this scanner's output. Example VEX document fragment. -->
+<!-- TODO: Worked example. Map `location.dependency.package` to the PURL, attach the CVE, set `analysis.state`. -->
 
-## OpenVEX outcome
+## Producing an OpenVEX
 
-<!-- TODO: When to use OpenVEX for this scanner's output. Example OpenVEX document. -->
+<!-- TODO: Worked example for SBOMs that only list direct deps. Subject is the project, vulnerability is the CVE or GitLab identifier, action_statement names the decision. -->

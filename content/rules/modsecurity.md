@@ -1,16 +1,16 @@
 ---
 title: "ModSecurity — WAF"
-description: "Write ModSecurity rules to mitigate web application vulnerabilities, then reference them in a VEX statement."
+description: "Block the attack vector at the WAF, then attest to the mitigation in OpenVEX."
 weight: 10
 ---
 
-## Overview
+## What ModSecurity does
 
-ModSecurity is an open-source web application firewall (WAF) engine. Rules written in the SecRule language can block or log HTTP requests that match known attack patterns — SQL injection, XSS, path traversal, and more.
+ModSecurity inspects HTTP requests before they reach your application and decides — by way of rules written in the SecRule language — whether to block, log, or allow. It runs as a module inside Apache, nginx, or as a standalone library in front of any reverse proxy.
 
-When a vulnerability in your application is mitigated by a ModSecurity rule (rather than a code fix), you can document that mitigation in an OpenVEX statement. The rule becomes the evidence that the risk is managed, even if the underlying code is not yet patched.
+For vulnerability management it serves one purpose. When a CVE in your application can be exploited via an identifiable request pattern, a ModSecurity rule that blocks that pattern is a valid mitigation. You record the mitigation in an OpenVEX statement and the rule itself — its ID, its version, and where it's deployed — becomes the evidence.
 
-**Outcome type:** OpenVEX — WAF rules are not SBOM components, so CycloneDX VEX does not apply.
+WAF rules aren't SBOM components, so the attestation is always OpenVEX, never CycloneDX VEX.
 
 ## Rule structure
 

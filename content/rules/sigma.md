@@ -1,16 +1,16 @@
 ---
 title: "Sigma — SIEM"
-description: "Write Sigma rules to detect exploitation activity in logs, then reference them in a VEX statement."
+description: "Detect the attempt in your logs once it lands, then attest to the visibility in OpenVEX."
 weight: 60
 ---
 
-## Overview
+## What Sigma does
 
-Sigma is a generic, vendor-neutral signature format for SIEM detection rules. A single Sigma rule can be compiled to Splunk SPL, Elastic Query DSL, Microsoft Sentinel KQL, QRadar AQL, and many other backends using the `sigma-cli` tool.
+Sigma is a vendor-neutral signature format for SIEM detection rules. A rule written once in Sigma YAML compiles — via the `sigma-cli` tool — to Splunk SPL, Elastic Query DSL, Microsoft Sentinel KQL, QRadar AQL, Chronicle, and a long list of other backends. You write the detection logic once and let the toolchain translate it for whichever SIEM you're paying for this quarter.
 
-In vulnerability management, Sigma rules serve as **detection-layer evidence**: deploying a rule that alerts on exploitation attempts proves that you have visibility into any attack against the vulnerability. This supports an OpenVEX `workaround_available` justification alongside (or instead of) a WAF/IPS mitigation.
+Sigma belongs in vulnerability management for the cases where you can't fix at the code layer and can't block at the network layer either. The mitigation is detection: you won't stop the attack, but you'll see it land the moment it happens. A Sigma rule deployed to your SIEM is evidence that you have visibility into exploitation attempts — which supports an OpenVEX statement of `affected` with `workaround_available`, especially while a patch is in flight.
 
-**Outcome type:** OpenVEX — SIEM detection rules are not SBOM components.
+SIEM rules aren't SBOM components, so the attestation is always OpenVEX.
 
 ## Rule structure
 

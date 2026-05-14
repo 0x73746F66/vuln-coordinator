@@ -1,16 +1,16 @@
 ---
 title: "YARA — Detection (defender)"
-description: "Write YARA rules to detect malicious files or artefacts related to a vulnerability, then reference them in a VEX statement."
+description: "Catch the payload at rest, then attest to the detection in OpenVEX."
 weight: 40
 ---
 
-## Overview
+## What YARA does
 
-YARA is a pattern-matching tool for identifying and classifying malware and suspicious files. Rules describe byte sequences, strings, or conditions that match a file or memory region.
+YARA matches files (or memory regions) against pattern rules — byte sequences, ASCII or UTF-16 strings, regex, and conditions that combine them. It's used by endpoint tooling, file-upload scanners, and incident responders to identify known malware families, webshells, exploit payloads, and second-stage tooling.
 
-In the context of vulnerability management, YARA rules serve as **defender-side detection**: you write a rule that detects the artefact an attacker would drop or the payload they would use. Deploying the rule to your endpoint or file-scanning pipeline is evidence that you can detect exploitation attempts, which supports an OpenVEX `workaround_available` justification.
+In vulnerability management YARA is the defender's mirror image of Nuclei. Where Nuclei probes a target to confirm the exploit works, YARA inspects files at rest to catch what an attacker would drop after exploiting the vulnerability — the dropped binary, the webshell, the payload encoded in an uploaded image. A YARA rule deployed to your endpoint or upload pipeline is evidence that you can detect exploitation activity, which supports an OpenVEX `affected` with `workaround_available` while a patch is being prepared.
 
-**Outcome type:** OpenVEX — YARA rules are detections, not package-level fixes.
+YARA rules are detections, not component-level fixes, so the attestation is always OpenVEX.
 
 ## Rule structure
 

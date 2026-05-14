@@ -9,11 +9,18 @@
   <main>
     <!-- Hero -->
     <section class="home-hero">
-      <p class="home-hero__eyebrow">Vulnerability Management</p>
-      <h1 class="home-hero__title">Turn scanner output into verifiable security attestations.</h1>
-      <p class="home-hero__sub">Practical guides for developers: read the report, decide the action, produce the correct CycloneDX VEX or OpenVEX statement.</p>
-      <div class="home-disclaimer">
-        <strong>Scope notice:</strong> {{ .Site.Params.disclaimer }}
+      <p class="home-hero__eyebrow">Vulnerability management</p>
+      <h1 class="home-hero__title">Decide each finding once. Record it. Move on.</h1>
+      <p class="home-hero__sub">When a scanner flags a CVE you have three options — fix it, accept it, or prove it doesn't apply. These guides cover all three, ending in the same place: a VEX statement that records what you decided so nobody re-investigates the same finding next sprint.</p>
+    </section>
+
+    <!-- Intro / how these guides are written -->
+    <section class="home-intro">
+      <div class="home-intro__inner">
+        <h2>How these guides are written</h2>
+        <p>The guides assume you work in GitLab or GitHub. Where they say <em>merge request</em> — what GitHub calls a pull request — the concept is interchangeable; we've picked the GitLab term throughout. If you're on Bitbucket, Azure DevOps, or self-hosted Forgejo the ideas still apply, only the menus differ.</p>
+        <p>Every CI example uses shell commands in a pipeline file — a <code>.gitlab-ci.yml</code> stanza or a GitHub Actions <code>run:</code> step. We don't reach for vendor plugins or marketplace actions when the same job fits in five lines of bash, because the bash works regardless of which CI vendor you migrate to next year and stays readable as a script you can run locally.</p>
+        <p>The audience is developers, not security teams. The goal is to give you enough context to make the right call on a finding in the time you have between merging this feature and being asked to merge the next one. Your decision ends up as evidence the security team can verify without interrupting you twice.</p>
       </div>
     </section>
 
@@ -23,8 +30,8 @@
 
         <!-- Scanners -->
         <div class="home-toc__section-label">Scanner guides</div>
-        <h2 class="home-toc__section-title">Read the report. Take action.</h2>
-        <p class="home-toc__section-desc">Each guide covers a specific scanner: how to read its output, a decision tree to determine the right attestation type, and example CycloneDX VEX or OpenVEX statements.</p>
+        <h2 class="home-toc__section-title">Each scanner speaks its own dialect.</h2>
+        <p class="home-toc__section-desc">One report format per tool, and the format changes every release. These guides translate each scanner's output into the same destination — a VEX statement that records what you decided about each finding.</p>
         <div class="home-toc__grid">
           {{ range where .Site.RegularPages "Section" "scanners" }}
             <a class="toc-card" href="{{ .RelPermalink }}">
@@ -36,8 +43,8 @@
 
         <!-- Rules -->
         <div class="home-toc__section-label">Rules writing</div>
-        <h2 class="home-toc__section-title">Mitigations that prove their worth.</h2>
-        <p class="home-toc__section-desc">When a finding is mitigated by a WAF rule, IPS signature, detection rule, or SIEM alert, you need to document it. These guides explain how to write the rule and reference it in a VEX statement.</p>
+        <h2 class="home-toc__section-title">When the fix isn't in the code.</h2>
+        <p class="home-toc__section-desc">A WAF rule blocks the attack vector. An IPS signature drops the exploit packet. A YARA rule catches the payload on disk. A Sigma rule alerts when the attempt hits your logs. Each is a valid response to a vulnerability — but only when the mitigation is documented somewhere a scanner can read.</p>
         <div class="home-toc__grid">
           {{ range where .Site.RegularPages "Section" "rules" }}
             <a class="toc-card" href="{{ .RelPermalink }}">
@@ -49,8 +56,8 @@
 
         <!-- Appendices -->
         <div class="home-toc__section-label">Appendices</div>
-        <h2 class="home-toc__section-title">The foundations.</h2>
-        <p class="home-toc__section-desc">Background on CycloneDX SBOMs and VEX statements — what they are, why they exist, and why producing them during normal development flow saves everyone time.</p>
+        <h2 class="home-toc__section-title">If SBOM and VEX are new to you, start here.</h2>
+        <p class="home-toc__section-desc">Background on the two attestation formats the scanner and rules guides assume — what they are, why they exist, and why generating them yourself during normal development flow saves everyone time downstream.</p>
         <div class="home-toc__grid">
           {{ range where .Site.RegularPages "Section" "appendices" }}
             <a class="toc-card" href="{{ .RelPermalink }}">

@@ -1,7 +1,9 @@
 ---
 title: "Scanner guides"
-description: "For each scanner: how to read the report, a decision tree, and the correct attestation output."
+description: "Translate scanner output into a CycloneDX VEX or OpenVEX statement, one tool at a time."
 weight: 10
 ---
 
-Each guide covers one scanner. It explains what the tool produces, how to interpret the output, and how to decide whether the correct attestation is a CycloneDX VEX (for findings tied to a component in your SBOM) or an OpenVEX (for everything else — secrets, SAST findings, or vulnerabilities mitigated by a WAF/IPS/SIEM rule).
+Each scanner has its own dialect. Snyk's JSON looks nothing like Grype's, CodeQL's SARIF is its own thing, and Dependabot is a UI rather than a file you can grep. These guides cover what each scanner actually produces, which fields drive a triage decision, and how to translate the output into a VEX statement that records what you decided.
+
+Pick the scanner that matches your pipeline. Every guide ends in the same place — either a CycloneDX VEX entry, when the finding ties back to an SBOM component, or an OpenVEX statement, for everything else.

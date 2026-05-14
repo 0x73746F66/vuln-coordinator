@@ -1,16 +1,16 @@
 ---
 title: "Suricata — IPS"
-description: "Write Suricata rules to detect and block network exploitation attempts, then reference them in a VEX statement."
+description: "Block the exploit at the network layer with protocol-aware rules, then attest to it in OpenVEX."
 weight: 30
 ---
 
-## Overview
+## What Suricata does
 
-Suricata is a high-performance, multi-threaded network IDS/IPS/NSM engine. Its rule language is largely compatible with Snort but extends it with additional keywords for protocol-aware inspection (HTTP, TLS, DNS, SMB, and more).
+Suricata is a multi-threaded network IDS / IPS / NSM engine. Its rule language reads like Snort's but extends it with protocol-aware sticky buffers — `http.uri`, `http.header`, `tls.sni`, `dns.query`, `smb.command` — which let you write rules that match against the parsed application layer rather than the raw bytes.
 
-When a vulnerability is blocked at the network level by a Suricata rule, that control can be referenced in an OpenVEX statement as evidence of risk management.
+For vulnerability management the use case mirrors Snort's: when the exploit has a recognisable wire signature, a Suricata rule that drops it before it reaches the vulnerable service is a valid mitigation. Where Suricata earns its place over Snort is the protocol awareness — matching on `http.uri` is more precise (and survives encoding tricks) than matching on raw `content`.
 
-**Outcome type:** OpenVEX.
+IPS rules aren't SBOM components, so the attestation is always OpenVEX.
 
 ## Rule structure
 

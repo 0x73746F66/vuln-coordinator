@@ -1,39 +1,45 @@
 ---
 title: "Snyk SAST"
-description: "Static application security testing via Snyk Code."
+description: "Snyk Code — taint-flow static analysis of your source, not your dependencies."
 weight: 20
 ---
 
-## Overview
+## What Snyk SAST does
 
-<!-- TODO: What Snyk Code analyses (source code patterns, taint flows), what it produces, where it surfaces (CI, IDE, MR decoration). -->
+<!-- TODO: One paragraph. Snyk Code (the SAST product, distinct from Snyk OSS) parses your source, builds a code graph, and flags taint-flow paths matching its library of weakness patterns — CWE-mapped. Triggered by `snyk code test` in CI or the IDE plugin. Output is JSON, SARIF, or an MR comment. -->
 
-## Reading the report
+## Reading the output
 
-### Report format
+<!-- TODO: SARIF is the canonical interop format and the source of truth for VEX work. Show what one `runs[].results[]` entry looks like — it carries `ruleId`, the CWE, `level` (note/warning/error mapped from severity), and `locations[].physicalLocation` (file + line range). The `flows[]` array shows the taint path source → sink. -->
 
-<!-- TODO: SARIF output, JSON output. Key fields: `ruleId`, `message`, `locations[].physicalLocation`. -->
+## What you can act on
 
-### Key fields
-
-<!-- TODO: How to identify the affected code path, CWE mapping, and severity. -->
+<!-- TODO: `ruleId` and `properties.cwe[]` for classification, `level` for severity, `locations[].physicalLocation.artifactLocation.uri` + `region.startLine` for the spot in the code, `codeFlows[]` if you need to follow the data flow from input to sink. -->
 
 ## Decision tree
 
-{{</* decision */>}}
-Is this finding in code you own?
-  ├─ Yes, and it is exploitable → Fix the code; no VEX needed until fixed
-  ├─ Yes, but risk is accepted  → OpenVEX (not_affected or risk_accepted)
-  └─ No  (third-party library)  → OpenVEX referencing upstream responsibility
+SAST findings sit in code you own, not in a packaged component. Most decisions are OpenVEX.
 
-Is there a WAF / SIEM rule that detects or blocks exploitation?
-  └─ Yes → OpenVEX with workaround_available + rule reference
-{{</* /decision */>}}
+{{< decision >}}
+Is the flagged code reachable in the deployed artefact?
+  ├─ No  (test fixture, build script, dead branch) → OpenVEX `not_affected`,
+  │                                                  justification `vulnerable_code_not_in_execute_path`
+  └─ Yes ↓
 
-## CycloneDX VEX outcome
+Can the inputs that reach the sink be controlled by an attacker?
+  ├─ No  (constant, validated upstream, internal-only call site) → OpenVEX `not_affected`,
+  │                                                                justification `vulnerable_code_cannot_be_controlled_by_adversary`
+  └─ Yes ↓
 
-<!-- TODO: SAST findings are not directly linked to SBOM components (they are code-level, not package-level). Only use CycloneDX VEX if the finding traces to a known library component in the BOM. -->
+Is the path mitigated by a WAF, IPS, or SIEM rule, or by an upstream framework hardening?
+  ├─ Yes → OpenVEX `affected` with `workaround_available`
+  └─ No  → fix the code; OpenVEX `fixed` once the patch ships
+{{< /decision >}}
 
-## OpenVEX outcome
+## Producing a CycloneDX VEX
 
-<!-- TODO: Primary attestation for SAST. Example OpenVEX JSON with `status: not_affected` or `status: affected`, justification, and optional workaround reference. -->
+<!-- TODO: Only relevant when the SAST finding actually traces to a third-party library component that is in your SBOM (rare for Snyk Code, which focuses on first-party code). When it applies, reference the library by PURL. -->
+
+## Producing an OpenVEX
+
+<!-- TODO: The usual outcome. Subject is the repository (or commit hash); vulnerability is the Snyk rule ID combined with the CWE; `action_statement` records the reasoning and any MR / commit references. Worked example. -->

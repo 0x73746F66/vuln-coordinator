@@ -1,38 +1,44 @@
 ---
 title: "GitHub Secret Scanning"
-description: "Secret and token detection in repository content via GitHub."
+description: "GitHub's first-party token scanner — runs continuously, talks directly to issuing providers for verified leaks."
 weight: 70
 ---
 
-## Overview
+## What GitHub Secret Scanning does
 
-<!-- TODO: What this scanner analyses, what it produces, how developers encounter it in CI or merge request workflows. -->
+<!-- TODO: One paragraph. GitHub runs token-pattern scans across the entire repository (history included) and against new pushes. For partner tokens (AWS, Stripe, GCP, etc.) it goes one step further: it verifies the token with the issuer, and on a positive match the issuer can auto-revoke or notify. Findings appear on the Security tab; push protection blocks pushes that contain a known token shape. -->
 
-## Reading the report
+## Reading the output
 
-### Report format
+<!-- TODO: The canonical API is `gh api /repos/{owner}/{repo}/secret-scanning/alerts` or the GraphQL `repository.secretScanningAlerts` connection. Each alert carries the `secret_type`, `secret_type_display_name`, `state`, `resolution`, `locations[]` (commit, blob path, line range), and — for verified partner secrets — a `validity` field. -->
 
-<!-- TODO: Output format (JSON, SARIF, table). Where to find the output in the pipeline or merge request. Key fields that drive triage. -->
+## What you can act on
 
-### Key fields
-
-<!-- TODO: The specific fields needed to identify the component/finding, severity, and affected version. -->
+<!-- TODO: `secret_type` (e.g. `aws_access_key_id`), `validity` (`active` / `inactive` / `unknown`), `state` (`open` / `resolved`), `resolution` (`false_positive` / `wont_fix` / `revoked` / `pattern_deleted` / `pattern_edited` / `used_in_tests`), `locations[].details` for commit + path. -->
 
 ## Decision tree
 
-{{</* decision */>}}
-Is the affected component declared in your SBOM?
-  ├─ Yes → CycloneDX VEX
-  └─ No  → OpenVEX
+Secrets are not SBOM components. Decisions are always OpenVEX, and the action order matters more than the format.
 
-Is the finding mitigated by a WAF / IPS rule or SIEM detection?
-  └─ Yes → OpenVEX with workaround_available + rule reference
-{{</* /decision */>}}
+{{< decision >}}
+Is the alert a verified-active partner token, or a regex match against a fixture / test value?
+  ├─ Fixture / test → OpenVEX `not_affected`,
+  │                   justification `vulnerable_code_not_present`,
+  │                   resolve the GitHub alert as `used_in_tests` so it stops appearing
+  └─ Active token ↓
 
-## CycloneDX VEX outcome
+Rotate the credential immediately. If GitHub's partner integration already revoked it (validity flipped to `inactive` after the push), you still owe a replacement.
 
-<!-- TODO: When to use CycloneDX VEX for this scanner's output. Example VEX document fragment. -->
+Purge from history if the repo is private. For a public repo the token must be considered exposed forever, regardless of what `git filter-repo` does — but rewriting history is still worth it to stop the alert re-firing.
 
-## OpenVEX outcome
+  → OpenVEX `fixed`. `action_statement` records: the rotation timestamp, the new vault location,
+    the history-rewrite commit, and the GitHub alert URL.
+{{< /decision >}}
 
-<!-- TODO: When to use OpenVEX for this scanner's output. Example OpenVEX document. -->
+## Producing a CycloneDX VEX
+
+<!-- TODO: Not applicable — secrets aren't SBOM components. -->
+
+## Producing an OpenVEX
+
+<!-- TODO: Worked example. Subject is the repo at a specific commit; vulnerability is the alert ID combined with `secret_type`; action_statement names the rotation, the resolution chosen on GitHub, and the history-rewrite evidence. -->

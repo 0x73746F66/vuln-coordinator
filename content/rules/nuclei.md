@@ -1,19 +1,16 @@
 ---
 title: "Nuclei — Detection (attacker simulation)"
-description: "Write Nuclei templates to verify whether a vulnerability is exploitable, then use the result to drive your VEX decision."
+description: "Confirm whether the exploit actually works, then let the result drive the VEX decision."
 weight: 50
 ---
 
-## Overview
+## What Nuclei does
 
-Nuclei is a fast, template-driven vulnerability scanner used for attacker-side simulation. Unlike YARA (which detects artefacts on a defender's systems), Nuclei templates probe a live target to confirm whether a finding is actually exploitable.
+Nuclei probes a running target with crafted requests and decides — by matching the response against template-defined matchers — whether the target is vulnerable. Where YARA inspects files at rest on a defender's systems, Nuclei plays the attacker's part: send the request, watch the response, declare a verdict.
 
-In vulnerability management, Nuclei serves two purposes:
+It earns two places in vulnerability management. First, before triage: run a Nuclei template against your environment to confirm a scanner finding is a true positive, not a CPE match against unreachable code. Second, after mitigation: re-run the template to prove a WAF rule, a patch, or a config change actually closes the vector.
 
-1. **Confirm exploitability** — run a Nuclei template to verify whether a scanner finding is a true positive before triaging it.
-2. **Verify a mitigation** — after deploying a WAF rule or patch, re-run the template to confirm the fix holds.
-
-**Outcome type:** The Nuclei result informs the VEX decision; it does not generate the VEX itself. A confirmed exploit → `affected` or `fixed`. A blocked exploit (WAF confirmed) → OpenVEX `workaround_available`.
+A Nuclei result informs the VEX decision but doesn't generate the VEX itself. A confirmed exploit drives `affected` (or `fixed`, after you ship the patch). A blocked exploit — where the rule fires and the response no longer matches — drives `affected` with `workaround_available`. A negative result on a true vulnerable build supports `not_affected` with a sharper justification, typically `vulnerable_code_cannot_be_controlled_by_adversary` or `vulnerable_code_not_present`.
 
 ## Template structure
 

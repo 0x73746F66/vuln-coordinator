@@ -1,38 +1,39 @@
 ---
 title: "osv-scanner"
-description: "Open-source vulnerability scanning against the OSV database."
+description: "Google's scanner against the OSV.dev database — fast, manifest-driven, no account needed."
 weight: 100
 ---
 
-## Overview
+## What osv-scanner does
 
-<!-- TODO: What this scanner analyses, what it produces, how developers encounter it in CI or merge request workflows. -->
+<!-- TODO: One paragraph. osv-scanner reads lockfiles (`package-lock.json`, `Cargo.lock`, `go.sum`, `Gemfile.lock`, `poetry.lock`, etc.) or a directory tree, normalises each component to a PURL, and queries the OSV.dev API for known advisories. No account, no telemetry, single static binary — easy to drop into CI. -->
 
-## Reading the report
+## Reading the output
 
-### Report format
+<!-- TODO: JSON via `--format json`, SARIF via `--format sarif`, table for humans. The JSON `results[].packages[].vulnerabilities[]` array is what you'll consume for VEX work. Each entry contains the OSV record verbatim — including `affected[].package.purl`, `aliases[]` (CVE / GHSA / others), and `database_specific.severity`. -->
 
-<!-- TODO: Output format (JSON, SARIF, table). Where to find the output in the pipeline or merge request. Key fields that drive triage. -->
+## What you can act on
 
-### Key fields
-
-<!-- TODO: The specific fields needed to identify the component/finding, severity, and affected version. -->
+<!-- TODO: `vulnerabilities[].id` (typically `GHSA-...` or `CVE-...`), `aliases[]` (cross-references), `affected[].package.purl`, `affected[].package.name` + ecosystem, `affected[].ranges[].events[]` (introduced and fixed versions), `database_specific.severity`. -->
 
 ## Decision tree
 
-{{</* decision */>}}
-Is the affected component declared in your SBOM?
-  ├─ Yes → CycloneDX VEX
-  └─ No  → OpenVEX
+{{< decision >}}
+osv-scanner emits PURLs by default, so findings tie directly to SBOM components.
 
-Is the finding mitigated by a WAF / IPS rule or SIEM detection?
-  └─ Yes → OpenVEX with workaround_available + rule reference
-{{</* /decision */>}}
+  → CycloneDX VEX entry referencing the PURL
 
-## CycloneDX VEX outcome
+Is the vulnerability published with a VEX or VEX-equivalent statement (some OSV records carry `database_specific.cwe_ids` or upstream `not_affected` notes)?
+  └─ Re-use upstream evidence rather than re-investigating
 
-<!-- TODO: When to use CycloneDX VEX for this scanner's output. Example VEX document fragment. -->
+Is the risk mitigated by a WAF, IPS, or SIEM rule?
+  └─ If yes, status is `affected` with `workaround_available` and the rule reference
+{{< /decision >}}
 
-## OpenVEX outcome
+## Producing a CycloneDX VEX
 
-<!-- TODO: When to use OpenVEX for this scanner's output. Example OpenVEX document. -->
+<!-- TODO: Worked example. Drop the OSV `affected[].package.purl` straight into `affects[].ref`; use `aliases[]` to populate `vulnerabilities[].references[]`. -->
+
+## Producing an OpenVEX
+
+<!-- TODO: Worked example for accepted-risk decisions or for findings against unmanifested components (rare for osv-scanner, but possible when scanning a directory of mixed binaries). -->

@@ -1,14 +1,14 @@
 ---
 title: "VEX — CycloneDX VEX and OpenVEX"
-description: "What a VEX statement is, when to use CycloneDX VEX vs OpenVEX, and why producing them benefits you as a developer."
+description: "Two formats for one job: recording your decision about a finding so nobody re-investigates it."
 weight: 20
 ---
 
-## What is a VEX statement?
+## What a VEX statement is
 
-A Vulnerability Exploitability eXchange (VEX) statement is a machine-readable document that records a decision about a specific vulnerability in a specific piece of software. It answers the question: *"Is this CVE actually a problem for this component in this build, and what action has been taken?"*
+A Vulnerability Exploitability eXchange (VEX) statement is a machine-readable record of a decision about a specific vulnerability in a specific piece of software. It answers one question: *is this CVE actually a problem for this component in this build, and what was done about it?*
 
-VEX was designed to address a persistent problem in vulnerability management: scanners produce lists of CVEs that match component versions. Many of those matches are false positives — the vulnerable code path is not present, or it is unreachable in this deployment, or a compensating control already blocks it. Without a VEX statement, every person who runs the scanner against your code sees the same noise. With a VEX statement, tools can suppress findings you have already assessed.
+VEX exists because vulnerability scanners do a particular kind of thing badly. They match component versions against advisory databases, then list every match — without checking whether the vulnerable code path is reachable, whether the input is attacker-controllable, or whether a compensating control already blocks the vector. Many matches are false positives in your particular build. Without a VEX statement, every person who runs the scanner against your code re-litigates the same noise. With one, tools that understand VEX can suppress findings you've already assessed.
 
 ## The two formats
 
@@ -187,14 +187,16 @@ An OpenVEX document contains one or more **statements**, each with:
 
 ## Why VEX matters to a developer
 
-**Helps future-you.** Six months from now, when the same CVE appears in a new scanner report, the VEX statement records your original decision and the reasoning behind it. You do not need to re-investigate from scratch.
+Writing VEX feels like an extra step. It's worth it for five reasons that compound over time.
 
-**Proves past actions.** If a cyber team or auditor asks "what did you do about CVE-2024-12345?", the VEX statement is a timestamped, machine-readable record. It is more trustworthy than a Slack message or a comment in a ticket.
+**Future-you benefits first.** Six months from now, when the same CVE reappears in a new scanner report, the VEX statement carries your original reasoning. You don't re-investigate from scratch — you read what you wrote.
 
-**Suppresses noise for your colleagues.** Modern scanning tools that consume VEX data will suppress findings that have already been assessed as `not_affected` or `fixed`. When a colleague runs a scanner against your repository, they do not see noise that you already resolved — provided the VEX file is present and the tool supports it.
+**Past decisions become defensible.** When a security team or auditor asks "what did you do about CVE-2024-12345?", a timestamped, machine-readable VEX statement is more trustworthy than a comment in a closed ticket or a half-remembered Slack thread.
 
-**You benefit from other people's work.** The same suppression works in reverse. If a shared library's maintainer publishes a VEX statement saying a CVE does not affect their library in its default configuration, tools that read VEX will suppress that finding for you automatically.
+**Your colleagues see less noise.** Scanner tooling that understands VEX will suppress findings already assessed as `not_affected` or `fixed`. When a colleague runs the scanner against your repository tomorrow, they don't get to re-discover what you already triaged.
 
-**Modern scanners consume VEX.** Grype, Trivy, and the Vulnetix platform all have VEX ingestion. The investment in writing the statement pays forward every time the scanner runs.
+**You benefit from other people's work.** The same suppression works in reverse. When a library maintainer publishes a VEX statement saying a CVE doesn't affect their default configuration, VEX-aware tools suppress that finding for you automatically.
 
-**Compliance and audit readiness.** VEX is referenced in CISA guidance, NIST SP 800-218, and the EU Cyber Resilience Act as a mechanism for communicating exploitability status. Producing VEX as part of your normal development flow means compliance artefacts exist before they are requested.
+**Compliance is already done.** VEX is referenced in CISA guidance, NIST SP 800-218, and the EU Cyber Resilience Act as the mechanism for communicating exploitability status. Producing VEX during normal development means the compliance artefact exists before it's requested.
+
+Grype, Trivy, and the Vulnetix platform all consume VEX today. The investment pays back every time the scanner runs.

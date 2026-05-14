@@ -13,5 +13,4 @@ languageCode = "en-gb"
   noClasses        = true
 
 [params]
-  description = "Practical guides for developers: turn scanner output into verifiable security attestations using CycloneDX VEX and OpenVEX."
-  disclaimer  = "These guides assume GitLab (project / sub-group hierarchy) or GitHub. \"Merge request\" refers to what GitHub calls a pull request. All CI examples use shell commands in a pipeline file (gitlab-ci.yml or a GitHub Actions run: step) — no vendor plugins — so they work regardless of which tools your pipeline uses."
+  description = "Decide each scanner finding once, record it as a CycloneDX VEX or OpenVEX attestation, and stop re-litigating the same CVEs."

@@ -1,38 +1,47 @@
 ---
 title: "GitLab DAST"
-description: "Dynamic application security testing via GitLab's DAST scanner."
+description: "Black-box probing of a running deployment — OWASP ZAP under the hood, driven by a GitLab CI job."
 weight: 50
 ---
 
-## Overview
+## What GitLab DAST does
 
-<!-- TODO: What this scanner analyses, what it produces, how developers encounter it in CI or merge request workflows. -->
+<!-- TODO: One paragraph. The DAST CI job spins up an OWASP ZAP container, points it at a target URL (typically a review-app or staging deploy), and runs baseline or full active scans. Findings cover OWASP Top 10-style issues — header misconfig, SQLi probes, XSS probes, auth weaknesses. The `gl-dast-report.json` artefact is the canonical output. -->
 
-## Reading the report
+## Reading the output
 
-### Report format
+<!-- TODO: The `gl-dast-report.json` artefact is the source of truth. Each `vulnerabilities[]` entry carries `name`, `description`, `severity`, `location.hostname` + `.path`, `evidence.request` + `.response` (request/response that proved the finding), `identifiers[]` (CWE, WASC, OWASP). -->
 
-<!-- TODO: Output format (JSON, SARIF, table). Where to find the output in the pipeline or merge request. Key fields that drive triage. -->
+## What you can act on
 
-### Key fields
-
-<!-- TODO: The specific fields needed to identify the component/finding, severity, and affected version. -->
+<!-- TODO: `name` + `identifiers[]` for classification, `location.hostname` + `.path` + `.method`, `evidence.request` (the request that triggered it — reproducing this manually is how you confirm the finding), `severity`, `solution`. -->
 
 ## Decision tree
 
-{{</* decision */>}}
-Is the affected component declared in your SBOM?
-  ├─ Yes → CycloneDX VEX
-  └─ No  → OpenVEX
+DAST probes a running deployment. Findings are runtime, not component-level.
 
-Is the finding mitigated by a WAF / IPS rule or SIEM detection?
-  └─ Yes → OpenVEX with workaround_available + rule reference
-{{</* /decision */>}}
+{{< decision >}}
+Reproduce the finding by replaying the `evidence.request` against the same environment.
 
-## CycloneDX VEX outcome
+Is the finding confirmed?
+  ├─ No  (transient, scanner artefact, environment drift) → OpenVEX `not_affected`,
+  │                                                         justification `vulnerable_code_not_present`
+  └─ Yes ↓
 
-<!-- TODO: When to use CycloneDX VEX for this scanner's output. Example VEX document fragment. -->
+Is the affected endpoint exposed to traffic an attacker can actually send (public, partner-shared, pivot-reachable from a known foothold)?
+  ├─ No  → OpenVEX `not_affected`,
+  │        justification `vulnerable_code_cannot_be_controlled_by_adversary`
+  └─ Yes ↓
 
-## OpenVEX outcome
+Is the vector blocked by a WAF, IPS, or upstream auth that the attacker can't reach?
+  ├─ Yes → OpenVEX `affected` with `workaround_available` and the rule reference
+  └─ No  → fix the underlying handler; OpenVEX `fixed` once deployed
+{{< /decision >}}
 
-<!-- TODO: When to use OpenVEX for this scanner's output. Example OpenVEX document. -->
+## Producing a CycloneDX VEX
+
+<!-- TODO: Rare — DAST findings rarely tie to a packaged component. The exception is when the finding traces to a known issue in a server library in your SBOM (an outdated nginx, a vulnerable app server). In that case, attach the CycloneDX VEX entry to the library's PURL. -->
+
+## Producing an OpenVEX
+
+<!-- TODO: Worked example. Subject is the deployed application + environment (URL or namespace); vulnerability identifier is the DAST finding ID + CWE; action_statement names the fix or mitigation evidence. -->

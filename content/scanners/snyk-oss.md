@@ -1,38 +1,36 @@
 ---
 title: "Snyk OSS"
-description: "Open-source dependency vulnerability scanning via Snyk."
+description: "Open-source dependency vulnerability scanning across npm, PyPI, Maven, Go, Cargo, RubyGems and Packagist."
 weight: 10
 ---
 
-## Overview
+## What Snyk OSS does
 
-<!-- TODO: What Snyk OSS scans, what it produces, where developers encounter it (CI pipeline, IDE, merge request comment). -->
+<!-- TODO: One paragraph. Snyk OSS resolves the declared dependency tree (from `package-lock.json`, `requirements.txt`, `pom.xml`, `go.sum`, etc.) and matches each component against the Snyk vulnerability database. Triggered by `snyk test` in CI, the IDE plugin, or `snyk monitor` for continuous tracking. Output is JSON or SARIF. -->
 
-## Reading the report
+## Reading the output
 
-### Report format
+<!-- TODO: Where to find the report — the CI job artefact (`snyk-results.json`), the merge request comment summary, or the Snyk dashboard if you `snyk monitor` from CI. Pick one as the canonical source; for VEX work, the JSON is the source of truth. Show what one `vulnerabilities[]` entry looks like. -->
 
-<!-- TODO: JSON output from `snyk test --json`, SARIF via `snyk test --sarif`, or inline table in a merge request. Key fields: `vulnerabilities[].id`, `vulnerabilities[].severity`, `vulnerabilities[].from` (dependency path). -->
+## What you can act on
 
-### Key fields
-
-<!-- TODO: How to map a finding to a specific component version and dependency path. -->
+<!-- TODO: Useful fields: `id` (SNYK-XXX or CVE), `severity`, `packageName` + `version`, `from[]` (the dependency path showing how a transitive ended up in your build), `upgradePath[]` (which top-level bump fixes it), `isPatchable`, `fixedIn[]`. Ignore the rest until you need it. -->
 
 ## Decision tree
 
-{{</* decision */>}}
-Does the vulnerable component appear in your project's SBOM?
-  ├─ Yes → CycloneDX VEX  (component is a known BOM entry)
-  └─ No  → OpenVEX        (transitive dep not yet in SBOM, or risk accepted at code level)
+{{< decision >}}
+Is the vulnerable package declared in your SBOM?
+  ├─ Yes → CycloneDX VEX entry referencing the PURL
+  └─ No  → OpenVEX statement (transitive dep not declared, or build-time-only tool)
 
-Is the vulnerability mitigated by a WAF / IPS rule or SIEM detection?
-  └─ Yes → OpenVEX with `workaround_available` justification + rule reference
-{{</* /decision */>}}
+Is the risk mitigated by a WAF, IPS, or SIEM rule?
+  └─ If yes, status is `affected` with `workaround_available` and the rule reference
+{{< /decision >}}
 
-## CycloneDX VEX outcome
+## Producing a CycloneDX VEX
 
-<!-- TODO: When the vulnerable package IS in the SBOM. Example CycloneDX VEX JSON showing component reference, vulnerability ID, and analysis state (e.g. `not_affected`, `in_triage`, `affected`, `fixed`). -->
+<!-- TODO: Snyk OSS findings map cleanly to SBOM components, so the CycloneDX VEX entry references the same PURL as the SBOM, the Snyk or CVE identifier, and an `analysis.state` of `not_affected` / `affected` / `fixed`. Show a worked example. -->
 
-## OpenVEX outcome
+## Producing an OpenVEX
 
-<!-- TODO: When the package is a transitive dependency not declared in the SBOM, or when risk is accepted at the project level. Example OpenVEX JSON. -->
+<!-- TODO: For cases where the package isn't in the SBOM — direct-only SBOM, or a build-time tool not shipped with the artefact. Subject is the project; vulnerability is the Snyk ID; action_statement names the decision. -->

@@ -221,18 +221,6 @@ a:hover { opacity: 0.75; }
   .content { padding: 40px 24px 80px; }
 }
 
-/* --- Disclaimer callout (top of every guide) --- */
-.disclaimer {
-  background: rgba(0,22,20,0.06);
-  border-left: 3px solid var(--vx-mint-strong);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  padding: 14px 18px;
-  margin-bottom: 40px;
-  font-size: 14px;
-  color: rgba(0,22,20,0.8);
-  line-height: 1.5;
-}
-
 /* =========================================================
    TYPOGRAPHY (content area)
    ========================================================= */
@@ -522,34 +510,60 @@ a:hover { opacity: 0.75; }
 }
 
 .home-hero__sub {
-  font-size: 18px;
+  font-size: 19px;
   color: var(--vx-bone);
-  opacity: 0.8;
-  max-width: 580px;
-  margin: 0 auto 36px;
+  opacity: 0.82;
+  max-width: 640px;
+  margin: 0 auto;
   line-height: 1.6;
 }
 
-.home-disclaimer {
-  max-width: 680px;
-  margin: 0 auto;
-  background: rgba(102,220,200,0.08);
-  border: 1px solid var(--vx-mint-30);
-  border-radius: var(--radius-md);
-  padding: 16px 22px;
-  font-size: 14px;
-  color: var(--vx-bone);
-  opacity: 0.85;
-  line-height: 1.55;
-  text-align: left;
+/* --- Intro section (editorial prose) --- */
+.home-intro {
+  background: var(--vx-cream);
+  padding: 80px 48px 16px;
 }
 
-.home-disclaimer strong { color: var(--vx-mint); font-weight: 600; }
+.home-intro__inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.home-intro h2 {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--vx-ink);
+  margin-bottom: 24px;
+  letter-spacing: -0.005em;
+}
+
+.home-intro p {
+  font-size: 16px;
+  line-height: 1.7;
+  color: rgba(0,22,20,0.8);
+  margin-bottom: 18px;
+}
+
+.home-intro p:last-child { margin-bottom: 0; }
+
+.home-intro em {
+  font-style: italic;
+  color: var(--vx-ink);
+}
+
+.home-intro code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: rgba(0,22,20,0.07);
+  border: 1px solid rgba(0,22,20,0.1);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
 
 /* --- TOC section cards --- */
 .home-toc {
   background: var(--vx-cream);
-  padding: 72px 48px;
+  padding: 56px 48px 96px;
 }
 
 .home-toc__inner { max-width: 1100px; margin: 0 auto; }
@@ -733,7 +747,8 @@ a:hover { opacity: 0.75; }
 
   .home-hero { padding: 80px 24px 60px; }
   .home-hero__title { font-size: 36px; }
-  .home-toc { padding: 48px 24px; }
+  .home-intro { padding: 56px 24px 8px; }
+  .home-toc { padding: 40px 24px 72px; }
   .section-list { padding: 32px 24px; }
   .site-footer { flex-wrap: wrap; padding: 24px; }
 }
