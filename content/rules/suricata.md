@@ -4,6 +4,8 @@ description: "Block the exploit at the network layer with protocol-aware rules, 
 weight: 30
 ---
 
+> **OSS** (GPL-2.0) · OISF · [OISF/suricata](https://github.com/OISF/suricata) · [Docs](https://suricata.io/documentation/) · Rule sources: [Emerging Threats](https://rules.emergingthreats.net/), Talos · `vulnetix vdb traffic-filters <CVE>` returns Snort/Suricata-compatible signatures.
+
 ## What Suricata does
 
 Suricata is a multi-threaded network IDS / IPS / NSM engine. Its rule language reads like Snort's but extends it with protocol-aware sticky buffers — `http.uri`, `http.header`, `tls.sni`, `dns.query`, `smb.command` — which let you write rules that match against the parsed application layer rather than the raw bytes.

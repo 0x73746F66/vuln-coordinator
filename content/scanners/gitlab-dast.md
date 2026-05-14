@@ -4,6 +4,8 @@ description: "OWASP ZAP under the hood, probes a deployed environment, JSON repo
 weight: 50
 ---
 
+> **GitLab built-in** · Ultimate tier · [GitLab docs](https://docs.gitlab.com/ee/user/application_security/dast/) · Engine: [OWASP ZAP](https://www.zaproxy.org/) (Apache-2.0, [zaproxy/zaproxy](https://github.com/zaproxy/zaproxy))
+
 GitLab's DAST job spins up an OWASP ZAP container, points it at a target URL (typically a review-app or staging deploy), and runs baseline or full active scans. The report — `gl-dast-report.json` — is GitLab's standard Secure-stage format, shaped like Dependency Scanning and Secret Detection. The killer field is `evidence.request` — the actual HTTP request that triggered the finding. Replay it to confirm, and you've turned a DAST result into a verifiable fact.
 
 DAST runs against a running service, so it's the one scanner that needs a deployment — usually a GitLab review-app or a scheduled scan against staging. Out-of-cycle by design; you wouldn't gate every commit on it.

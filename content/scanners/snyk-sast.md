@@ -4,6 +4,8 @@ description: "Snyk's taint-flow static analysis — SARIF 2.1.0 output with code
 weight: 20
 ---
 
+> **Commercial** (Snyk Ltd) · [Docs](https://docs.snyk.io/scan-using-snyk/snyk-code) · CLI source: [snyk/cli](https://github.com/snyk/cli) (Apache-2.0) · Free tier with monthly test caps; paid plans for full features.
+
 Snyk Code parses your source, builds a control- and data-flow graph, and flags taint paths matching its library of weakness patterns — CWE-mapped, across most mainstream languages. The output you'll consume is SARIF 2.1.0 from `snyk code test --sarif-file-output`. Findings surface in CI, IDE, and merge-request decorations, all reading the same SARIF.
 
 The killer field is `codeFlows[]` — the actual traced data path from source to sink. Without it you're reading "SQL injection in some/file.py" and guessing; with it you see "request param `name` flows through `user_filter` into `cursor.execute()` at line 42".

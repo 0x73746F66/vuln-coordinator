@@ -4,6 +4,8 @@ description: "Snyk's dependency vulnerability scanner — JSON or SARIF output, 
 weight: 10
 ---
 
+> **Commercial** (Snyk Ltd) · [Docs](https://docs.snyk.io/scan-using-snyk/snyk-open-source) · CLI source: [snyk/cli](https://github.com/snyk/cli) (Apache-2.0) · Free tier with monthly test caps; paid plans for full features.
+
 Snyk OSS (Open Source) resolves the declared dependency tree from your manifest files — `package-lock.json`, `requirements.txt`, `pom.xml`, `go.sum`, `Cargo.lock`, and the other locks you'd expect across 30+ ecosystems — and matches each component against the Snyk vulnerability database. You'll see it as a CI step (`snyk test`), as IDE squiggles, as merge-request decoration when integrated with the platform's bot, or as the `snyk monitor` dashboard for continuous tracking after a release.
 
 For triage work the JSON output is the source of truth; the dashboard and the MR comment are UI summaries on top.
@@ -103,9 +105,19 @@ Apply the Engineer Triage inputs:
 
 See [SSVC Engineer Triage](../appendices/ssvc/) for the full decision tree.
 
+## Verify-affected and direct-vs-transitive
+
+Before picking a fix, prove the finding is real for *your* build and decide whether the artefact is direct or transitive — the mechanism is the same as for any SCA finding, captured in detail in the [Vulnetix SCA guide](../vulnetix/sca/#verify-affected---is-the-finding-real-for-your-build) and the [direct-vs-transitive triage section](../vulnetix/sca/#direct-vs-transitive-triage--which-knob-do-you-turn).
+
+Snyk's JSON makes this fast:
+
+- `vulnerabilities[].from[]` is the resolved path from your project root to the affected component. Length 2 (`[myapp, lodash]`) → direct dep. Length 3+ → transitive; the middle entries are the parents to consider bumping.
+- `vulnerabilities[].upgradePath[]` aligns 1:1 with `from[]`. `upgradePath[0] === false` means no top-level bump fixes it — you must coerce the transitive. Any later index that's a string is a viable parent-bump target (`upgradePath[1]` is the closest-to-root remediation).
+- `vulnerabilities[].fixedIn[]` is the minimum version that drops the finding. Compare against your lockfile's constraint for `PATCHABLE_DEPLOYMENT` vs `PATCHABLE_VERSION_LOCKED`.
+
 ## Patching mechanics
 
-Lockfile editing, transitive coercion, and integrity verification are in the **[package managers appendix](../appendices/package-managers/)** — one page per ecosystem (`npm` lives under [JavaScript](../appendices/package-managers/javascript/), `pip` under [Python](../appendices/package-managers/python/), and so on).
+Lockfile editing, transitive coercion, and integrity verification are in the **[package managers appendix](../appendices/package-managers/)** — one page per ecosystem (`npm` lives under [JavaScript](../appendices/package-managers/javascript/), `pip` under [Python](../appendices/package-managers/python/), and so on). For Java findings, the [JVM appendix](../appendices/package-managers/jvm/) covers the dozen-plus Maven and Gradle mechanisms (BOM property override, `<dependencyManagement>`, Gradle `constraints { }` / `strictly` / `dependencySubstitution`, etc.) and which one to pick based on whether Snyk reports a direct or transitive finding.
 
 ## Decision tree
 
@@ -156,10 +168,21 @@ npm install
 npm ls lodash    # confirm every path resolves 4.17.21
 ```
 
-Reachability: `lodash.template` is the affected function. Grep your codebase:
+Reachability: drive the grep from Snyk's own `functions[]` field (Snyk's reachability-enabled output carries the affected class+function names per finding); fall back to vulnetix `x_affectedRoutines` when `functions[]` is absent for the advisory.
 
 ```bash
-git grep -nE '\b_\.template\b|lodash/template|require\(["'"'"']lodash/template' src/
+# Primary — Snyk-native, names come from the same JSON that flagged the vuln
+SYMBOLS=$(jq -r '.vulnerabilities[]
+                  | select(.id=="SNYK-JS-LODASH-1018905")
+                  | .functions[]?.functionId.functionName' snyk-results.json \
+            | sort -u)
+
+# Fallback if `.functions` is empty for this advisory
+[ -z "$SYMBOLS" ] && SYMBOLS=$(vulnetix vdb vuln CVE-2021-23337 --output json \
+  | jq -r '.[0].containers.adp[0].x_affectedRoutines[]?
+           | select(.kind=="function") | .name')
+
+printf '%s\n' "$SYMBOLS" | xargs -I{} git grep -nE "\b{}\b|lodash/{}|require\\([\"']lodash/{}" src/
 ```
 
 If `template` isn't called, Engineer Triage → `Reachability: VERIFIED_UNREACHABLE` → with `PATCHABLE_DEPLOYMENT` (caret range) → `NIGHTLY_AUTO_PATCH`. If it is called, the override still resolves the finding — `Remediation: PATCHABLE_DEPLOYMENT`, outcome: `NIGHTLY_AUTO_PATCH`.

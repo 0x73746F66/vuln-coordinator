@@ -4,6 +4,8 @@ description: "Semantic query-based SAST — extracts a relational model of your 
 weight: 80
 ---
 
+> **GitHub built-in** · Free for public repositories; [GitHub Advanced Security](https://docs.github.com/en/get-started/learning-about-github/about-github-advanced-security) (commercial) for private · Engine + standard queries: [github/codeql](https://github.com/github/codeql) (MIT) · [Query docs](https://codeql.github.com/) · [Code Scanning docs](https://docs.github.com/en/code-security/code-scanning) · CLI distribution gated.
+
 CodeQL extracts a database from your source — per language, after a build for compiled languages — and runs queries from the standard query packs against it. Findings surface as code-scanning alerts on the Security tab, as inline comments on merge requests, and as SARIF stored against the analysis. The triage entry point is `gh api` for programmatic access; the UI is the same data with click-through to the codeFlow trace.
 
 CodeQL is the one place this site recommends a vendor action: `github/codeql-action` in your workflow. The alternative is shipping the CodeQL CLI yourself, which is awkward enough that the vendor action's convenience wins.
@@ -237,7 +239,7 @@ When the CodeQL rule targets a specific library API — e.g. `java/jwt-missing-v
     "analysis": {
       "state": "not_affected",
       "justification": "code_not_reachable",
-      "detail": "pyyaml is imported but only safe_load is used (verified with git grep). Engineer Triage: BACKLOG."
+      "detail": "pyyaml is imported but only safe_load is used. Verified by `jq '.runs[].results[] | select(.ruleId==\"py/insecure-deserialization\")' codeql.sarif` returning zero results (the rule's matched API is `yaml.load` per the SARIF rule definition), cross-checked with `git grep -nE '\\byaml\\.load\\b' src/`. Engineer Triage: BACKLOG."
     }
   }]
 }

@@ -4,6 +4,8 @@ description: "GitLab's Gitleaks-driven secret scanner — JSON report, fires on 
 weight: 40
 ---
 
+> **GitLab built-in** · All tiers · [GitLab docs](https://docs.gitlab.com/ee/user/application_security/secret_detection/) · Engine: [Gitleaks](https://github.com/gitleaks/gitleaks) (MIT)
+
 GitLab's Secret Detection job (Secure stage) scans diffs (and optionally the full history with `--full-history`) for token patterns. Driven by Gitleaks under the hood, but the report format is GitLab's standard `gl-secret-detection-report.json`, identical in shape to the other Secure-stage reports.
 
 Detections fire on regex patterns for cloud creds, VCS tokens, payment keys, generic high-entropy strings, and certificate / private-key headers. The MR Security widget is the day-to-day UI; the JSON artefact is what you read for triage.

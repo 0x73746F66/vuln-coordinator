@@ -4,6 +4,8 @@ description: "Block the exploit packet at the network edge, then attest to the m
 weight: 20
 ---
 
+> **OSS** (GPL-2.0) · Cisco Talos · [snort3/snort3](https://github.com/snort3/snort3) · [Docs](https://www.snort.org/documents) · Rule sources: [Talos](https://www.snort.org/downloads#rule-downloads) (subscription / community) · `vulnetix vdb snort-rules` returns CVE-keyed rules from the Vulnetix catalogue.
+
 ## What Snort does
 
 Snort sits in the network path — inline as an IPS or out-of-band as an IDS — and matches packets against rules written in the Snort rule language. A rule that matches can pass the traffic, log it, alert on it, or drop it.

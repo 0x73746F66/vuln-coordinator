@@ -4,6 +4,8 @@ description: "GitHub's first-party dep scanner — Security tab alerts + auto-up
 weight: 60
 ---
 
+> **GitHub built-in** · Free on all repositories · [GitHub docs](https://docs.github.com/en/code-security/dependabot) · Engine source: [dependabot/dependabot-core](https://github.com/dependabot/dependabot-core) (MIT) · Advisory database: [github/advisory-database](https://github.com/github/advisory-database) (CC-BY-4.0)
+
 Dependabot watches your repository's resolved dependency graph against the GitHub Advisory Database and surfaces every match in three places: as alerts under the Security tab, as auto-generated merge requests that bump the affected lockfile, and as a GraphQL / REST endpoint for programmatic access. The first two are UIs over the same data; the third is what you'll automate against for triage and reporting.
 
 Auto-upgrade MRs are the lever that makes Dependabot different from a vanilla SCA scanner. When the alert and the bot agree on the bump, the workflow is "review the MR, confirm green CI, merge" — most of Engineer Triage resolves to `NIGHTLY_AUTO_PATCH` for them.
@@ -175,7 +177,7 @@ gh pr list --author "app/dependabot" --search "lodash" --json number,title,url,s
 
 Run Engineer Triage:
 
-- **Reachability** = `VERIFIED_REACHABLE` (lodash is imported across the codebase — `git grep -l lodash src/` returns 14 files)
+- **Reachability** = `VERIFIED_REACHABLE` — package name comes from the Dependabot alert payload, not typed: `PKG=$(gh api repos/:owner/:repo/dependabot/alerts/58 --jq '.dependency.package.name')` then `git grep -l "$PKG" src/` returns 14 files. For function-level reach (is `lodash.template` actually called, not just imported?) drive symbols from `vulnetix vdb vuln CVE-2021-23337 | jq '.[0].containers.adp[0].x_affectedRoutines[].name'`.
 - **Remediation Option** = `PATCHABLE_DEPLOYMENT` (caret range `^4.17.20` in `package.json` accepts 4.17.21; the MR proves it)
 - **Mitigation Option** = `AUTOMATION` (Dependabot is the automation)
 - **Priority** = `HIGH` (alert severity; Vulnetix coordinator returns `Track*`, exploitation `POC`, EPSS ~0.2 — no urgency multiplier)
@@ -238,6 +240,18 @@ When the alert is on a dev-only dep or you decide to dismiss it:
 }
 ```
 {{< /outcome >}}
+
+## Verify-affected and direct-vs-transitive
+
+Dependabot opens an MR but the version it picks isn't always the version your build will actually resolve once merged. Three quick checks before approving the MR:
+
+- **Is the alerted version the version in your resolved lockfile?** Dependabot reads the manifest, not necessarily the resolved tree; re-walk with the ecosystem-native command (`npm ls <pkg>`, `mvn dependency:tree -Dincludes=...`, `pip show <pkg>`, `go list -m <module>`).
+- **Is the dep direct or transitive?** Dependabot's `dependency.relationship` field (when present) is the authoritative answer: `direct` vs `indirect`. Cross-check by running the ecosystem-native dependency-walk command.
+- **Will the auto-MR actually fix it?** Dependabot's auto-MR bumps the *direct* dep it knows about. If the affected artefact is a transitive of one of your direct deps, Dependabot may not be able to coerce it — you'll need the lockfile / dependencyManagement / constraints mechanism from the [package managers appendix](../appendices/package-managers/) on top of (or instead of) the auto-MR.
+
+For Java specifically (alert mentions `pom.xml` or `build.gradle`), Dependabot frequently opens an MR that bumps a Spring Boot parent or a BOM rather than the transitive itself — sometimes correct, sometimes a bump introducing unrelated breaking changes. The [JVM appendix](../appendices/package-managers/jvm/) covers when to override at the BOM-property level, when to use `<dependencyManagement>`, when to use Gradle `constraints { }` / `dependencySubstitution`, and how to gate with the maven-enforcer-plugin so a future regression can't slip past.
+
+Full workflow: [Vulnetix SCA verify-affected](../vulnetix/sca/#verify-affected---is-the-finding-real-for-your-build) and [direct-vs-transitive triage](../vulnetix/sca/#direct-vs-transitive-triage--which-knob-do-you-turn).
 
 ## Patching mechanics
 

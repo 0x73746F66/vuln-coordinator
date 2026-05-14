@@ -4,6 +4,8 @@ description: "Block the attack vector at the WAF, then attest to the mitigation 
 weight: 10
 ---
 
+> **OSS** (Apache-2.0) · OWASP · [owasp-modsecurity/ModSecurity](https://github.com/owasp-modsecurity/ModSecurity) · [Docs](https://modsecurity.org/documentation.html) · Rule library: [OWASP Core Rule Set](https://github.com/coreruleset/coreruleset) (Apache-2.0)
+
 ## What ModSecurity does
 
 ModSecurity inspects HTTP requests before they reach your application and decides — by way of rules written in the SecRule language — whether to block, log, or allow. It runs as a module inside Apache, nginx, or as a standalone library in front of any reverse proxy.

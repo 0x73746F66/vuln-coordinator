@@ -4,6 +4,8 @@ description: "Google's OSV-database scanner — fast, account-free, native OSV-s
 weight: 100
 ---
 
+> **OSS** (Apache-2.0) · Google · [google/osv-scanner](https://github.com/google/osv-scanner) · [Docs](https://google.github.io/osv-scanner/) · Backed by [OSV.dev](https://osv.dev/) (aggregator across GHSA, NVD, RUSTSEC, PYSEC, GO, MAL and more)
+
 `osv-scanner` reads lockfiles directly (`package-lock.json`, `Cargo.lock`, `go.sum`, `Gemfile.lock`, `poetry.lock`, and many more), normalises each component to a PURL, and queries the OSV.dev API. No account, no telemetry, single static binary — easy to drop into CI as a `run:` step.
 
 The output is the OSV schema verbatim — `aliases[]` cross-references every database (GHSA, CVE, RUSTSEC, PYSEC, GO, MAL, OSV), so you can pivot from osv-scanner's identifier to any of them.
@@ -119,6 +121,18 @@ Engineer Triage from osv-scanner:
 
 See [SSVC Engineer Triage](../appendices/ssvc/).
 
+## Verify-affected and direct-vs-transitive
+
+Before triaging, confirm the artefact is in the *running* build (not just the manifest), then classify direct vs transitive — the workflow is identical to any SCA finding and is covered in detail in the [Vulnetix SCA guide](../vulnetix/sca/#verify-affected---is-the-finding-real-for-your-build).
+
+OSV-Scanner's JSON helps:
+
+- `results[].packages[].package` is the affected package — match against your lockfile to confirm version drift.
+- `results[].packages[].vulnerabilities[].affected[].package` plus `.ranges[]` tells you whether your installed version is in scope.
+- `results[].packages[].dependencyGroups[]` (when present) distinguishes runtime from dev/test groups — a `dev`-only finding may not be in production at all (`vulnerable_code_not_present` candidate).
+
+For Java findings reported against `pom.xml` or `gradle.lockfile`, jump straight to the [JVM appendix](../appendices/package-managers/jvm/) — it walks each of the dozen-plus mechanisms (direct version bump, `<dependencyManagement>` pin, BOM property override, Gradle `constraints { }` / `strictly` / `dependencySubstitution`, etc.) and which fits a transitive vs a direct finding.
+
 ## Patching mechanics
 
 The [package managers appendix](../appendices/package-managers/) covers lockfile editing, transitive coercion, and integrity verification for every supported ecosystem.
@@ -193,14 +207,26 @@ vulnetix vdb vuln CVE-2024-45337 --output json \
 #   }]
 ```
 
-Reachability — do you build an SSH server using `golang.org/x/crypto/ssh.ServerConfig.PublicKeyCallback`?
+Reachability — do you build an SSH server using `golang.org/x/crypto/ssh.ServerConfig.PublicKeyCallback`? Drive the grep targets from OSV's own `affected[].ecosystem_specific.imports[]` when the advisory populates it, then fall back to vulnetix `x_affectedRoutines`:
 
 ```bash
 go mod why golang.org/x/crypto
 # → if it shows your main module → directly used; otherwise transitive
 
-# Grep for the affected callback API
-git grep -nE 'ServerConfig\{|PublicKeyCallback' ./
+# Primary — OSV-native, from osv-scanner.json
+SYMBOLS=$(jq -r '.results[].packages[].vulnerabilities[]
+                  | select(.id=="GHSA-cg3q-j54f-5p7p")
+                  | .affected[].ecosystem_specific.imports[]?.symbols[]?' osv-scanner.json \
+            | sort -u)
+
+# Fallback when OSV doesn't carry symbols
+[ -z "$SYMBOLS" ] && SYMBOLS=$(vulnetix vdb vuln CVE-2024-45337 --output json \
+  | jq -r '.[0].containers.adp[0].x_affectedRoutines[]?
+           | select(.kind=="function") | .name')
+
+# Grep for any of the affected APIs — regex composed from the symbol list
+printf '%s\n' $SYMBOLS | paste -sd'|' - \
+  | xargs -I{} git grep -nE '{}' ./
 ```
 
 If the affected API isn't used, Engineer Triage → `Reachability: VERIFIED_UNREACHABLE`, `Remediation: PATCHABLE_DEPLOYMENT` (Go module bump), `Mitigation: AUTOMATION`, `Priority: HIGH` → `NIGHTLY_AUTO_PATCH`. If it is used (you operate an SSH server), `Reachability: VERIFIED_REACHABLE`, priority shifts to `CRITICAL` (the `Attend` Coordinator + active SSH service) → likely `DROP_TOOLS` for the immediate bump.
@@ -233,7 +259,7 @@ go mod tidy
     }],
     "analysis": {
       "state": "resolved",
-      "detail": "Engineer Triage: NIGHTLY_AUTO_PATCH. osv-scanner GHSA-cg3q-j54f-5p7p (CVE-2024-45337). Inputs: reachability=VERIFIED_UNREACHABLE (no ServerConfig usage; we're a client only, verified via go mod why and grep on PublicKeyCallback), remediation=PATCHABLE_DEPLOYMENT, mitigation=AUTOMATION, priority=HIGH. go get golang.org/x/crypto@v0.31.0 + go mod tidy in MR !91."
+      "detail": "Engineer Triage: NIGHTLY_AUTO_PATCH. osv-scanner GHSA-cg3q-j54f-5p7p (CVE-2024-45337). Inputs: reachability=VERIFIED_UNREACHABLE (no ServerConfig usage; we're a client only, verified via go mod why plus git grep driven from OSV `affected.ecosystem_specific.imports` — symbols: PublicKeyCallback, ServerConfig — cross-checked with vulnetix `x_affectedRoutines`), remediation=PATCHABLE_DEPLOYMENT, mitigation=AUTOMATION, priority=HIGH. go get golang.org/x/crypto@v0.31.0 + go mod tidy in MR !91."
     }
   }]
 }
@@ -263,7 +289,7 @@ For OSV findings where the affected package lacks a PURL (rare — usually only 
     }],
     "status": "not_affected",
     "justification": "vulnerable_code_not_in_execute_path",
-    "action_statement": "Engineer Triage: BACKLOG. We use golang.org/x/crypto as an SSH client only (golang.org/x/crypto/ssh.Dial), not as a server. ServerConfig.PublicKeyCallback is never instantiated. Confirmed with go mod why + grep on PublicKeyCallback. Will pick up the bump on next module refresh."
+    "action_statement": "Engineer Triage: BACKLOG. We use golang.org/x/crypto as an SSH client only (golang.org/x/crypto/ssh.Dial), not as a server. ServerConfig.PublicKeyCallback is never instantiated. Confirmed with go mod why plus git grep driven from OSV `affected.ecosystem_specific.imports` (fallback: vulnetix `x_affectedRoutines`). Will pick up the bump on next module refresh."
   }]
 }
 ```

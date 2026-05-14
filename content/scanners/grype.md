@@ -4,6 +4,8 @@ description: "Anchore's vulnerability scanner — JSON / SARIF output, native Op
 weight: 90
 ---
 
+> **OSS** (Apache-2.0) · Anchore · [anchore/grype](https://github.com/anchore/grype) · [Docs](https://github.com/anchore/grype#readme) · Companion SBOM generator: [anchore/syft](https://github.com/anchore/syft)
+
 Grype matches components against several vulnerability databases (NVD, GitHub Advisory, GitLab Advisory, OS-distribution feeds — Ubuntu USN, Alpine secdb, RedHat, Amazon ALAS, Wolfi) and runs against three input types: a container image, a directory tree, or an existing SBOM. For triage work the most useful mode is the third: `grype sbom:./sbom.cdx.json` re-scans the SBOM you already trust, with no re-resolution.
 
 The single feature that makes Grype distinct from the other SCA tools is **native OpenVEX consumption** via `--vex` — write an OpenVEX statement once, point Grype at it, and the affected finding stops appearing in every subsequent scan. The feedback loop makes Grype the tool where OpenVEX investment pays back fastest. Note the format: `--vex` reads **OpenVEX**, not CycloneDX VEX. If you also keep a CycloneDX VEX (for tools that consume that format), maintain both.
@@ -88,6 +90,163 @@ jq '.ignoredMatches[] | {
     }' grype.json
 ```
 
+## First: identify the finding class
+
+A Grype finding in a container can be one of three very different things, and each demands a different triage workflow. Read `matches[].matchDetails[].matcher` and `matches[].artifact.purl` from the JSON to classify *before* you do anything else.
+
+### Class A — OS package finding (base layer)
+
+`matchDetails[].matcher` is one of `dpkg-matcher`, `apk-matcher`, `rpm-matcher`, `alpine-matcher`, `wolfi-matcher`, etc. PURL scheme is `pkg:deb/`, `pkg:apk/`, `pkg:rpm/`. The package came from the base image's OS layer (`/var/lib/dpkg/status`, `/lib/apk/db/installed`, `/var/lib/rpm/Packages`).
+
+```bash
+jq '.matches[]
+    | select(.matchDetails[].matcher
+             | test("(dpkg|apk|rpm|alpine|wolfi)-matcher"))
+    | { id: .vulnerability.id, pkg: .artifact.name, purl: .artifact.purl,
+        path: .artifact.locations[0].path,
+        upstream: .relatedVulnerabilities[0].id }' grype-results.json
+```
+
+The right fix is one of:
+- **Upgrade the base image tag** (the common case — Debian, Ubuntu, Alpine, RHEL UBI all release patched tags on a regular cadence). Bump the `FROM` line in your Dockerfile.
+- **Run the distro package manager during build** to upgrade the specific package above the base image's pinned version. See *Class A — fix mechanics* below.
+- **Migrate to a maintained hardened base** if upstream is abandoned (next subsection).
+
+### Class B — language ecosystem finding inside the container
+
+`matchDetails[].matcher` is one of `javascript-matcher`, `python-matcher`, `java-matcher`, `go-module-matcher`, `ruby-matcher`, `php-matcher`. PURL scheme is `pkg:npm/`, `pkg:pypi/`, `pkg:maven/`, `pkg:golang/`, `pkg:gem/`, `pkg:composer/`. The artefact came from a manifest or lockfile that was `COPY`'d into the container:
+
+```bash
+jq '.matches[]
+    | select(.matchDetails[].matcher
+             | test("(javascript|python|java|go-module|ruby|php)-matcher"))
+    | { id: .vulnerability.id, pkg: .artifact.name, purl: .artifact.purl,
+        manifest: .artifact.locations[0].path,
+        builtin: (.artifact.locations[0].path | test("^/usr/local/lib|^/opt|^/var/lib") | not) }' \
+   grype-results.json
+```
+
+**This is a normal SCA finding, not a container finding.** Pivot to the appropriate package-manager triage workflow in the [package managers appendix](../appendices/package-managers/) using the manifest path Grype reported. Common false-pivot trap: a developer treats this as a base-image issue and tries to upgrade the OS, when the real fix is to bump the version in `package.json` / `requirements.txt` / `pom.xml` *back in the source repo* and rebuild the image.
+
+The path Grype reports — `/app/package-lock.json`, `/srv/app/requirements.txt`, `/app/target/myapp.jar` — tells you where the manifest landed inside the image, which in turn tells you whether to fix it in your source tree or in a stage of a multi-stage build (next subsection).
+
+### Class C — multi-stage-build artefact leakage
+
+Some images are built with a multi-stage `Dockerfile`. Class B findings can land in any stage:
+
+```dockerfile
+FROM maven:3.9-eclipse-temurin-21 AS build
+COPY pom.xml .
+COPY src/ src/
+RUN mvn -B package
+
+FROM eclipse-temurin:21-jre AS runtime
+COPY --from=build /target/myapp.jar /app/myapp.jar
+```
+
+The Maven build dependencies are scoped to the `build` stage; only the JAR (and *its bundled deps* if it's an uber-JAR) survives to `runtime`. Inspect the Grype match's `locations[].path`:
+
+- If `path` is `/target/...` or `/build/...` → likely the build stage (you scanned a multi-stage build's intermediate image; the finding is in build-time tooling and not in the runtime image).
+- If `path` is `/app/myapp.jar` and the matcher is `java-matcher` → the artefact is shaded into the uber-JAR; triage is a normal SCA workflow against the source POM (Class B) and the rebuild propagates.
+- If `path` is the runtime image's OS metadata (`/var/lib/dpkg/status`) → Class A.
+
+**Always scan the runtime image, not the build stage.** `docker build --target=runtime -t myapp:runtime` then `grype myapp:runtime`.
+
+### Class D — copied-in OS package files
+
+Rare but real: a `Dockerfile` that does `COPY ./vendored/some-debian-package.deb /tmp/` and `RUN dpkg -i /tmp/some-debian-package.deb`. The package shows as a dpkg match (Class A) but the fix isn't a base-image bump — it's updating the vendored `.deb` in your source repo. Detect via `RUN` archaeology: `docker history --no-trunc <image>` shows the layer commands. If a `dpkg -i` references a `COPY`'d file, treat the version pin as a source-repo concern.
+
+### Class A — fix mechanics
+
+Once you've identified an OS-package finding, you have three escalating options:
+
+**Option 1 — base image tag bump (preferred).**
+
+```dockerfile
+# Before
+FROM debian:12.5-slim
+
+# After — check the upstream tag list
+FROM debian:12.8-slim
+```
+
+Check the maintainer's tag cadence:
+
+```bash
+# Debian
+docker run --rm debian:12.8-slim cat /etc/debian_version
+
+# Alpine
+docker run --rm alpine:3.20 cat /etc/alpine-release
+
+# RHEL UBI (Red Hat Universal Base Image)
+docker run --rm registry.access.redhat.com/ubi9/ubi:latest cat /etc/redhat-release
+
+# Compare against the fix-available version Grype reported
+jq '.matches[] | select(.vulnerability.id=="<CVE>") | .vulnerability.fix' grype-results.json
+```
+
+If the latest available tag still ships the affected version, the upstream hasn't patched yet — fall through to Option 2 or Option 3.
+
+**Option 2 — distro package upgrade during build.**
+
+When the base image tag is current but the specific package is lagging, override at build time:
+
+```dockerfile
+# Debian / Ubuntu
+FROM debian:12.8-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        libbind9-9=1:9.18.28-1~deb12u2 \
+ && rm -rf /var/lib/apt/lists/*
+
+# Alpine
+FROM alpine:3.20
+RUN apk add --no-cache 'libssl3>=3.3.2-r0'
+
+# RHEL UBI
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+RUN microdnf upgrade -y openssl-libs && microdnf clean all
+
+# Wolfi (apko-based)
+FROM cgr.dev/chainguard/wolfi-base
+RUN apk add --no-cache 'libcrypto3>=3.3.2-r0'
+```
+
+**Multi-stage gotcha**: if your runtime stage is `FROM scratch` or `FROM gcr.io/distroless/static`, you can't run a package manager. Either move to a base that has one (distroless-with-debian-libc, UBI minimal, Wolfi) or upgrade the package in an intermediate stage and `COPY --from=` the binaries you actually need.
+
+**Option 3 — migrate to a maintained hardened base.**
+
+When the upstream base image is abandoned (the maintainer stopped publishing security patches, or the upstream distro itself reached EOL), the *only* honest fix is to migrate. Red Hat publishes a family of free hardened base images that get tracked security advisories:
+
+- **[Red Hat Universal Base Image (UBI)](https://catalog.redhat.com/software/base-images)** — `registry.access.redhat.com/ubi9/ubi`, `ubi9/ubi-minimal`, `ubi9/ubi-micro`. Freely redistributable; tied to RHEL's CVE backports.
+- **[Red Hat container images catalogue](https://catalog.redhat.com/en)** — language-specific runtimes (Node, Python, OpenJDK) built on UBI.
+- **[images.redhat.com](https://images.redhat.com/)** — front door for the image programme.
+- **[Red Hat container docs](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/building_running_and_managing_containers/index)** — security model, advisory consumption (`microdnf updateinfo list`), and rebuild cadence.
+
+Other maintained hardened alternatives:
+
+- **[Chainguard Images](https://images.chainguard.dev/)** — Wolfi-based, minimal-CVE, daily-rebuilt; many are free, enterprise tier for the rest.
+- **[Google distroless](https://github.com/GoogleContainerTools/distroless)** — `gcr.io/distroless/{base,java,nodejs,python}`, no shell, no package manager, very small attack surface.
+- **[Microsoft CBL-Mariner](https://github.com/microsoft/CBL-Mariner)** — Microsoft's hardened Linux distro for Azure-hosted containers.
+
+The migration decision: an abandoned base image gets *no* future security patches no matter how diligent your scanning is. Plan the migration; don't just keep adding VEX statements. A `not_affected` VEX on `libssl` is honest; a `not_affected` VEX on every CVE that ever lands against an EOL OS is wishful thinking.
+
+### Class B — fix mechanics
+
+Treat as SCA. The manifest path Grype reported maps to a source-tree file:
+
+| Path inside image | Source path | Appendix |
+|---|---|---|
+| `/app/package-lock.json` | `package-lock.json` | [JavaScript](../appendices/package-managers/javascript/) |
+| `/app/requirements.txt` | `requirements.txt` | [Python](../appendices/package-managers/python/) |
+| `/app/poetry.lock` | `poetry.lock` | [Python](../appendices/package-managers/python/) |
+| `/app/myapp.jar` (uber-JAR) | `pom.xml` / `build.gradle` | [JVM](../appendices/package-managers/jvm/) |
+| `/app/go.mod` | `go.mod` | [Go](../appendices/package-managers/go/) |
+| `/app/Cargo.lock` | `Cargo.lock` | [Rust](../appendices/package-managers/rust/) |
+
+Fix in source, rebuild the image, re-scan. If the finding persists after a clean rebuild, check for stale build cache (`docker build --no-cache`) and for vendored copies of the dep (e.g. `node_modules/` committed to the source tree).
+
 ## From finding to root cause
 
 Grype is the tool where the triage workflow most rewards OpenVEX investment. The loop:
@@ -126,7 +285,12 @@ See [SSVC Engineer Triage](../appendices/ssvc/) for the decision tree.
 
 ## Patching mechanics
 
-Application-dependency findings → the [package managers appendix](../appendices/package-managers/) for the lockfile edit. OS-layer findings → rebuild the image off a newer base.
+Pick the workflow that matches the finding class identified above:
+
+- **Class A — OS package** → base-image tag bump, distro package upgrade in build, or migrate to a maintained hardened base (see *Class A — fix mechanics* above; Red Hat UBI, Chainguard, distroless, Wolfi).
+- **Class B — language ecosystem** → SCA, fix in source manifest. See the [package managers appendix](../appendices/package-managers/) for the ecosystem.
+- **Class C — multi-stage leakage** → confirm runtime stage scan, then apply Class A or B for the stage that actually carries the artefact.
+- **Class D — vendored OS package** → update the vendored `.deb` / `.rpm` / `.apk` in source; rebuild image.
 
 ## Decision tree
 
@@ -177,13 +341,24 @@ Grype flags `libbind9-9@1:9.18.19-1~deb12u1` in the `ghcr.io/library/postgres:16
 }
 ```
 
-The finding is an exact-direct dpkg match (high confidence) on a Debian package. Reachability check — does anything in the image link against libbind9?
+The finding is an exact-direct dpkg match (high confidence) on a Debian package. Reachability check — does anything in the image link against the affected library? Drive the library name from Grype's own JSON instead of typing it (and pull the function-level grep list from `vulnetix vdb vuln` when symbol-level reach matters):
 
 ```bash
-# Pull a copy of the image and inspect linkage
+# Library name from grype-results.json — never typed by hand
+LIB=$(jq -r '.matches[]
+              | select(.vulnerability.id=="CVE-2024-1737")
+              | .artifact.name' grype-results.json | head -1)
+
+# Symbol-level supplement (Grype's JSON only carries the package — vulnetix
+# provides the affected functions/files for binaries that *do* link the lib)
+ROUTINES=$(vulnetix vdb vuln CVE-2024-1737 --output json \
+  | jq -r '.[0].containers.adp[0].x_affectedRoutines[]?
+           | select(.kind=="function") | .name')
+
+# Pull a copy of the image and inspect linkage against $LIB
 docker run --rm --entrypoint sh ghcr.io/library/postgres:16.2 \
-  -c 'find / -type f -executable 2>/dev/null \
-      | xargs -I{} sh -c "ldd {} 2>/dev/null | grep -l bind9 && echo {}"' \
+  -c "find / -type f -executable 2>/dev/null \
+      | xargs -I{} sh -c 'ldd {} 2>/dev/null | grep -l \"$LIB\" && echo {}'" \
   | sort -u
 ```
 

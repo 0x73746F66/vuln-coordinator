@@ -176,6 +176,103 @@ Deploy the rule, run the Nuclei template against staging to confirm the WAF bloc
 
 Decision criteria for step 6: if the vulnerable function in the dep isn't reachable from your code, `not_affected` is honest and durable. If it is, upgrade or mitigate, then `resolved` / `exploitable + workaround_available`.
 
+## Verify-affected — is the finding real for *your* build?
+
+Before triaging, prove the artefact actually ships in the running build. Scanners flag based on manifest contents; manifests lie (a dep declared in `package.json` may not survive `npm prune --production`; a `<scope>test</scope>` Maven dep is in the POM but not in the WAR). Three quick checks:
+
+1. **Is the version Grype/Snyk/Dependabot reported the version your build resolves?**
+   - npm: `npm ls <pkg>` (locks-honoring) or `node -e "console.log(require('<pkg>/package.json').version)"` against `node_modules/`.
+   - Maven: `mvn dependency:tree -Dincludes=<group>:<artifact>` then read the version.
+   - Gradle: `./gradlew :app:dependencyInsight --dependency <artifact> --configuration runtimeClasspath`.
+   - pip: `pip show <pkg> | grep ^Version`.
+   - Go: `go list -m <module>`.
+
+2. **Is it on the runtime classpath / runtime image, or only build/test?**
+   - Drop dev/test by re-running the package manager's prod-only resolve: `npm ci --omit=dev`, `pip install --no-deps -r requirements.txt`, `mvn dependency:tree -Dscope=runtime`, `go mod why` returning a path that excludes test packages.
+   - Containers: scan the **runtime** image, not a build-stage image. `docker build --target=runtime -t myapp:runtime .` then re-scan.
+
+3. **Does the *built artefact* actually carry the affected code?**
+   - JVM: `jar tf target/myapp.jar | grep <class-path>`. Watch for shaded/relocated classes in uber-JARs.
+   - JS bundles: search `meta.json` from `esbuild --metafile`, or `webpack-bundle-analyzer` output.
+   - Native images: GraalVM `reachability-metadata.json`, or `nm`/`objdump` on the binary.
+
+A scanner finding that survives all three checks is real. A finding that fails any of them goes into the VEX with the corresponding justification (`vulnerable_code_not_present`, `component_not_present`, `inline_mitigations_already_exist`).
+
+## Direct vs transitive triage — which knob do you turn?
+
+The fix mechanism depends on whether your code declared the artefact or whether it arrived via someone else's transitive. The decision is the same across every package manager; the *mechanism* changes per language. Walk the dep tree first, then pick the knob.
+
+### Step 1 — classify the finding
+
+```bash
+# CycloneDX SBOM — every component plus its direct parents
+jq '.dependencies[]
+    | select(.dependsOn | index("pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"))
+    | .ref' .vulnetix/sbom.cdx.json
+# Empty result → the artefact is a top-level declared dep (direct).
+# One+ parents → transitive; the printed refs are the direct dep(s) that drag it in.
+```
+
+| Classification | What you see in `dependencies[]` | First-line fix |
+|---|---|---|
+| **Direct** | The artefact's ref appears in your application component's `dependsOn` array. | Bump the version in the manifest. |
+| **Transitive (single parent)** | One non-root component lists the artefact in its `dependsOn`. | Either bump the parent (preferred — fewest surprises), or coerce the transitive via lockfile / dependencyManagement / constraints / overrides. |
+| **Transitive (multiple parents)** | Several components depend on the artefact. | Coerce the transitive directly — bumping all parents is usually a bigger blast radius than pinning the one transitive. |
+| **Transitive (BOM-controlled)** | The artefact's version is set by a BOM import (Spring Boot, AWS SDK, Jackson, etc.). | Override the BOM property *or* re-declare in dependencyManagement before the BOM import. See the [JVM appendix](../../../appendices/package-managers/jvm/) for the order rules. |
+| **Lockfile-only, no manifest declaration** | The artefact is in `package-lock.json` / `yarn.lock` / `Cargo.lock` but absent from `package.json` / `Cargo.toml`. | Pure transitive. Use `overrides` (npm), `resolutions` (Yarn), `[patch]` (Cargo), `replace` (Go). |
+
+### Step 2 — pick the mechanism
+
+| Ecosystem | Direct dep | Transitive coercion |
+|---|---|---|
+| **npm** | edit `dependencies` in `package.json`, run `npm install` | `overrides` in `package.json` (npm 8+), or yank-and-pin via `npm-force-resolutions` for npm 7 and below |
+| **Yarn Classic** | `yarn upgrade <pkg>` | `resolutions` in `package.json` |
+| **Yarn Berry / pnpm** | `yarn up <pkg>` / `pnpm up <pkg>` | `resolutions` (Yarn) or `pnpm.overrides` (pnpm) |
+| **pip / pip-tools** | bump in `requirements.in`, recompile | constraint file via `-c` flag (pip ≥ 7) |
+| **Poetry / uv** | edit `pyproject.toml` `[tool.poetry.dependencies]` / `[project.dependencies]` | `[tool.poetry.dependencies] <pkg> = "X.Y.Z"` even for transitives; uv's `[tool.uv.sources]` and `tool.uv.constraint-dependencies` |
+| **Maven** | bump `<version>` or `<properties>` | `<dependencyManagement>`; BOM-property override; `<exclusions>` + replacement (see [JVM appendix](../../../appendices/package-managers/jvm/)) |
+| **Gradle** | bump in `dependencies { }` or version catalog | `constraints { }`; rich versions (`strictly`); `dependencySubstitution`; `resolutionStrategy.force` (legacy) |
+| **Go** | `go get <module>@<version>` | `replace` directive in `go.mod`, or `go mod edit -require=` for direct upgrade of the transitive (Go 1.21+ supports upgrading via `go get` on transitives) |
+| **Cargo** | edit `Cargo.toml`, run `cargo update -p <pkg>` | `[patch.crates-io]` for transitive override |
+| **Bundler** | `bundle update <gem>` | `Gemfile` declares the gem directly (bundler doesn't have a transitive override; you re-declare to coerce) |
+| **NuGet** | edit `<PackageReference>` in `.csproj` | Central Package Management (`Directory.Packages.props`) overrides transitives globally |
+| **Composer** | `composer require <pkg>:^X.Y` | `composer.json` `"replace"` (rare) or central-package via meta-package |
+
+### Step 3 — verify the coercion took effect
+
+A coercion that doesn't end up in the resolved tree is worse than no coercion at all — it gives false confidence. Always re-resolve and re-walk the tree:
+
+```bash
+# npm
+npm ls <pkg>                                    # every resolved path
+npm explain <pkg>                               # why is this version resolved?
+
+# Yarn / pnpm
+yarn why <pkg>
+pnpm why <pkg>
+
+# Maven
+mvn dependency:tree -Dincludes=<group>:<artifact> -Dverbose
+
+# Gradle
+./gradlew dependencyInsight --dependency <artifact> --configuration runtimeClasspath
+
+# pip
+pip-tree | grep -A2 <pkg>
+pipdeptree --reverse --packages <pkg>
+
+# Go
+go mod why <module>
+
+# Cargo
+cargo tree -p <pkg> -i
+
+# Container — final check
+grype <image>:<new-tag> --vex .vulnetix/vex.openvex.json | jq '.matches[].vulnerability.id'
+```
+
+Then re-run the scanner that originated the finding. If it still flags the same CVE, the coercion didn't land; check for caching, an alternative manifest, or a BOM that re-pins your version.
+
 ## Patching — the lockfile mechanics
 
 Lockfile mechanics, transitive-dependency coercion, integrity verification, and the gotchas are the same regardless of which scanner surfaced the finding. They live in the **[package managers appendix](../../../appendices/package-managers/)** — one page per language family, with the [transitive-coercion quick-reference table](../../../appendices/package-managers/#transitive-coercion-quick-reference) on the bundle's landing page for fast lookup.

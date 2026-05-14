@@ -4,6 +4,8 @@ description: "Catch the payload at rest, then attest to the detection in OpenVEX
 weight: 40
 ---
 
+> **OSS** (BSD-3-Clause) · VirusTotal · [VirusTotal/yara](https://github.com/VirusTotal/yara) · [Docs](https://yara.readthedocs.io/) · Active-development successor: [YARA-X](https://github.com/VirusTotal/yara-x) (Rust rewrite, ISC) · Rule libraries: [Yara-Rules](https://github.com/Yara-Rules/rules), [Neo23x0/signature-base](https://github.com/Neo23x0/signature-base)
+
 ## What YARA does
 
 YARA matches files (or memory regions) against pattern rules — byte sequences, ASCII or UTF-16 strings, regex, and conditions that combine them. It's used by endpoint tooling, file-upload scanners, and incident responders to identify known malware families, webshells, exploit payloads, and second-stage tooling.

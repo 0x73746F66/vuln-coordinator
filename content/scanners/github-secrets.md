@@ -4,6 +4,8 @@ description: "GitHub's first-party secret scanner — partner-token verification
 weight: 70
 ---
 
+> **GitHub built-in** · Free for public repositories; [GitHub Advanced Security](https://docs.github.com/en/get-started/learning-about-github/about-github-advanced-security) (commercial) required for private repositories and Push Protection at scale · [GitHub docs](https://docs.github.com/en/code-security/secret-scanning) · [Partner programme](https://docs.github.com/en/code-security/secret-scanning/secret-scanning-partner-program) · Engine is closed-source (GitHub-internal).
+
 GitHub runs continuous secret scans across your repository (and across pushes if Push Protection is enabled). For partner tokens — AWS, Stripe, GCP, GitHub itself, Slack, Twilio, and 200+ more — the secret pattern matches plus the issuer-side verification can confirm whether the token is still active and auto-revoke it on detection.
 
 Alerts live on the Security tab. For triage at scale you'll use `gh api`, REST or GraphQL — both pull the same data.

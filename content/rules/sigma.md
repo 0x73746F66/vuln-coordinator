@@ -4,6 +4,8 @@ description: "Detect the attempt in your logs once it lands, then attest to the 
 weight: 60
 ---
 
+> **OSS** (Detection Rule Licence 1.1) · SigmaHQ · [SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) · [Docs](https://sigmahq.io/) · CLI: [SigmaHQ/sigma-cli](https://github.com/SigmaHQ/sigma-cli) (LGPL-2.1) for cross-SIEM compilation.
+
 ## What Sigma does
 
 Sigma is a vendor-neutral signature format for SIEM detection rules. A rule written once in Sigma YAML compiles — via the `sigma-cli` tool — to Splunk SPL, Elastic Query DSL, Microsoft Sentinel KQL, QRadar AQL, Chronicle, and a long list of other backends. You write the detection logic once and let the toolchain translate it for whichever SIEM you're paying for this quarter.

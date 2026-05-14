@@ -5,6 +5,8 @@ weight: 5
 layout: single
 ---
 
+> **Commercial** (Vulnetix) · [CLI docs](https://docs.cli.vulnetix.com/) · [Product](https://www.vulnetix.com/) · Free tier with community Vulnerability Database access; paid plans for full VDB rate limits and Engineer Triage / cloud features.
+
 ## What Vulnetix does
 
 The Vulnetix CLI is a single binary that runs five evaluators against the same source tree in one invocation: **SCA** (dependency vulnerabilities), **SAST** (300+ built-in Rego rules across 20+ languages, plus external rule packs via `--rule org/repo`), **secrets**, **containers** (Dockerfile / Containerfile), **IaC** (Terraform, Nix flakes), and **licence** compliance. It produces a CycloneDX 1.7 SBOM, a SARIF 2.1 findings report, and a state file — all in one run, in the same `.vulnetix/` directory. The CLI also embeds a vulnerability-database client (`vulnetix vdb`) for ad-hoc CVE lookups, fix suggestions, and remediation-plan generation against MITRE, NVD, CISA KEV, EPSS, OSV, GHSA, OS-distribution advisories, and 70+ other sources.

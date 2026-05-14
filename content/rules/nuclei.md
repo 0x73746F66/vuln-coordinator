@@ -4,6 +4,8 @@ description: "Confirm whether the exploit actually works, then let the result dr
 weight: 50
 ---
 
+> **OSS** (MIT) · ProjectDiscovery · [projectdiscovery/nuclei](https://github.com/projectdiscovery/nuclei) · [Docs](https://docs.projectdiscovery.io/tools/nuclei) · Template library: [nuclei-templates](https://github.com/projectdiscovery/nuclei-templates) (MIT) · `vulnetix vdb nuclei get <CVE>` returns CVE-keyed templates ready for `nuclei -t -`.
+
 ## What Nuclei does
 
 Nuclei probes a running target with crafted requests and decides — by matching the response against template-defined matchers — whether the target is vulnerable. Where YARA inspects files at rest on a defender's systems, Nuclei plays the attacker's part: send the request, watch the response, declare a verdict.

@@ -4,6 +4,12 @@ description: "Pattern-matching SAST that reads like the language it scans — an
 weight: 110
 ---
 
+> **Semgrep**: OSS core (LGPL-2.1) + commercial Pro tier (Semgrep, Inc.) · [Source](https://github.com/semgrep/semgrep) · [Docs](https://semgrep.dev/docs/) · Rule registry: [semgrep.dev/r](https://semgrep.dev/r)
+>
+> **Opengrep**: OSS fork (LGPL-2.1) · [Source](https://github.com/opengrep/opengrep) · [Docs](https://opengrep.dev/)
+>
+> Used by GitLab as the [SAST analyser](https://docs.gitlab.com/ee/user/application_security/sast/) for several languages.
+
 Both engines run pattern rules expressed as code snippets with metavariables ("show me any `eval($X)` where `$X` came from a request parameter"). Semgrep is the original commercial-led project with a free OSS core; Opengrep is the community fork that exists because Semgrep relicensed the Pro analyses. Either runs identically against the same rule packs — `semgrep --config p/owasp-top-ten` works on Opengrep too. The flags, the rule format, and the JSON / SARIF output are interchangeable.
 
 This page uses `semgrep` in commands; substitute `opengrep` if you're on the fork.
@@ -157,10 +163,24 @@ Semgrep flags this on `p/python`:
 }
 ```
 
-The rule fires on a syntactic pattern (`subprocess.* with shell=True`); whether the `cmd` variable is attacker-controllable depends on the caller. Read the source to find out:
+The rule fires on a syntactic pattern (`subprocess.* with shell=True`); whether the `cmd` variable is attacker-controllable depends on the caller. Drive the caller-grep from Semgrep's own results — the matched location and the wrapping function name come straight out of the JSON, so you don't have to type either:
 
 ```bash
-git grep -n 'run(' src/   # find every caller
+# Sink locations — file:line of every rule match
+jq -r '.results[]
+        | select(.check_id=="python.lang.security.audit.subprocess-shell-true.subprocess-shell-true")
+        | "\(.path):\(.start.line)"' semgrep-results.json
+
+# Names of the wrapping functions to grep callers for.
+# Preferred: a `$FUNC` metavar in the rule. Fallback: parse `extra.lines` for the enclosing `def`.
+WRAPPERS=$(jq -r '.results[]
+                   | select(.check_id=="python.lang.security.audit.subprocess-shell-true.subprocess-shell-true")
+                   | (.extra.metavars."$FUNC".abstract_content
+                      // (.extra.lines | capture("def\\s+(?<n>[A-Za-z_][A-Za-z0-9_]*)\\s*\\(").n))' \
+            semgrep-results.json | sort -u)
+
+# Now grep for every caller of those wrapping functions
+printf '%s\n' $WRAPPERS | xargs -I{} git grep -nE "\\b{}\\(" src/
 ```
 
 If every caller passes a constant string from a config file, the pattern is reachable but the input isn't adversary-controllable — Engineer Triage `Reachability: VERIFIED_REACHABLE` but priority may drop. If any caller passes a request-derived value, the finding is genuine.
@@ -202,7 +222,7 @@ Outcome: `SPIKE_EFFORT` to confirm callers and rewrite, then merge.
       "identifiers": { "purl": "pkg:github/yourorg/yourrepo@abc1234" }
     }],
     "status": "fixed",
-    "action_statement": "Engineer Triage: SPIKE_EFFORT. Inputs: reachability=VERIFIED_REACHABLE (callers identified via git grep; one passes a request-derived path), remediation=PATCHABLE_MANUAL, mitigation=CODE_CHANGE, priority=HIGH. Replaced subprocess.call(cmd, shell=True) with subprocess.call(shlex.split(cmd)). Confirmed no other subprocess-shell-true results on re-scan. See MR !46."
+    "action_statement": "Engineer Triage: SPIKE_EFFORT. Inputs: reachability=VERIFIED_REACHABLE (wrapping functions extracted from semgrep-results.json metavars/extra.lines, callers identified by piping through jq into git grep; one passes a request-derived path), remediation=PATCHABLE_MANUAL, mitigation=CODE_CHANGE, priority=HIGH. Replaced subprocess.call(cmd, shell=True) with subprocess.call(shlex.split(cmd)). Confirmed no other subprocess-shell-true results on re-scan. See MR !46."
   }]
 }
 ```

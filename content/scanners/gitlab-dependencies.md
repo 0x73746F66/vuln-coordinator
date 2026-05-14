@@ -4,6 +4,8 @@ description: "GitLab's first-party dep scanner — runs on every pipeline, JSON 
 weight: 30
 ---
 
+> **GitLab built-in** · Free / Premium / Ultimate (feature-gated) · [GitLab docs](https://docs.gitlab.com/ee/user/application_security/dependency_scanning/) · Analyser: [Gemnasium](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium) (MIT)
+
 GitLab's Dependency Scanning job (part of the Secure stage) walks manifest files in your repository, queries the GitLab Advisory Database, and writes a `gl-dependency-scanning-report.json` artefact. Findings surface in the merge-request Security widget, the project's vulnerability report, and the security dashboard at the group level. The JSON artefact is the canonical source for triage work — the UI widgets are summaries on top of the same data.
 
 The job is auto-included when you `include` the Secure template in your `.gitlab-ci.yml`. No extra config needed for the common ecosystems.
@@ -107,6 +109,15 @@ Engineer Triage inputs map from the GitLab finding as follows:
 - **Priority** — GitLab `severity` plus Vulnetix `coordinator` + `exploitation`.
 
 See [SSVC Engineer Triage](../appendices/ssvc/) for the framework.
+
+## Verify-affected and direct-vs-transitive
+
+Before triaging, prove the artefact ships in the *deployed* artefact (not just the manifest) and classify direct vs transitive.
+
+- The gemnasium report's `vulnerabilities[].location.dependency.iid` is `0` for direct deps and non-zero for transitives; `vulnerabilities[].location.dependency.package.name` tells you which artefact. Cross-check with the ecosystem-native walk (`mvn dependency:tree`, `./gradlew dependencyInsight`, `npm ls`, `pip show`, `go list -m`).
+- For Java specifically (`location.file` is `pom.xml`, `build.gradle.kts`, or `gradle.lockfile`): if the finding is BOM-managed (Spring Boot, AWS SDK, Jackson), the right knob is the BOM-property override or a `<dependencyManagement>` entry placed *before* the BOM import. The [JVM appendix](../appendices/package-managers/jvm/) walks the dozen-plus mechanisms in order of blast radius (direct bump → property override → dependencyManagement → exclusions → enforcer gate).
+
+Full workflow: [Vulnetix SCA verify-affected](../vulnetix/sca/#verify-affected---is-the-finding-real-for-your-build) and [direct-vs-transitive triage](../vulnetix/sca/#direct-vs-transitive-triage--which-knob-do-you-turn).
 
 ## Patching mechanics
 
