@@ -103,7 +103,7 @@ Is `fix` non-null and `fix.applicability == "safe"`?
   → Apply `ruff check --fix` first, then write the OpenVEX. The autofix is the
     remediation; the OpenVEX records the decision for downstream consumers.
 
-Suppress a known-OK match via `# noqa: <code>` comment in source?
+Suppress a known-OK match via `# noqa: <rule-code>` comment in source?
   → Combine with an OpenVEX statement. The inline comment stops Ruff flagging it;
     the OpenVEX records why for other tools and for audit.
 {{< /decision >}}
