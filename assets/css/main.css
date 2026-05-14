@@ -334,6 +334,18 @@ a:hover { opacity: 0.75; }
   font-style: italic;
 }
 
+.content .table-wrap {
+  overflow-x: auto;
+  margin-bottom: 24px;
+  border: 1px solid rgba(0,22,20,0.08);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+.content .table-wrap table {
+  margin-bottom: 0;
+  border-radius: 0;
+}
 .content table {
   width: 100%;
   border-collapse: collapse;
@@ -349,11 +361,27 @@ a:hover { opacity: 0.75; }
   font-size: 13px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 .content td {
   padding: 10px 14px;
   border-bottom: 1px solid rgba(0,22,20,0.1);
+  vertical-align: top;
 }
+/* Wide qualitative comparison tables: tighter type, allow horizontal scroll */
+.content .table-wrap table { font-size: 13px; line-height: 1.45; }
+.content .table-wrap th,
+.content .table-wrap td { padding: 8px 10px; min-width: 140px; }
+.content .table-wrap td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--vx-bone);
+  font-weight: 500;
+  min-width: 220px;
+  border-right: 1px solid rgba(0,22,20,0.12);
+  z-index: 1;
+}
+.content .table-wrap tr:nth-child(even) td:first-child { background: #f3efe6; }
 .content tr:last-child td { border-bottom: none; }
 .content tr:nth-child(even) td { background: rgba(0,22,20,0.03); }
 
