@@ -1,20 +1,111 @@
 ---
 title: "Snyk OSS"
-description: "Open-source dependency vulnerability scanning across npm, PyPI, Maven, Go, Cargo, RubyGems and Packagist."
+description: "Snyk's dependency vulnerability scanner — JSON or SARIF output, SNYK-* identifiers cross-referenced to CVE / GHSA."
 weight: 10
 ---
 
-## What Snyk OSS does
+Snyk OSS (Open Source) resolves the declared dependency tree from your manifest files — `package-lock.json`, `requirements.txt`, `pom.xml`, `go.sum`, `Cargo.lock`, and the other locks you'd expect across 30+ ecosystems — and matches each component against the Snyk vulnerability database. You'll see it as a CI step (`snyk test`), as IDE squiggles, as merge-request decoration when integrated with the platform's bot, or as the `snyk monitor` dashboard for continuous tracking after a release.
 
-<!-- TODO: One paragraph. Snyk OSS resolves the declared dependency tree (from `package-lock.json`, `requirements.txt`, `pom.xml`, `go.sum`, etc.) and matches each component against the Snyk vulnerability database. Triggered by `snyk test` in CI, the IDE plugin, or `snyk monitor` for continuous tracking. Output is JSON or SARIF. -->
+For triage work the JSON output is the source of truth; the dashboard and the MR comment are UI summaries on top.
 
-## Reading the output
+## What Snyk OSS finds in JSON
 
-<!-- TODO: Where to find the report — the CI job artefact (`snyk-results.json`), the merge request comment summary, or the Snyk dashboard if you `snyk monitor` from CI. Pick one as the canonical source; for VEX work, the JSON is the source of truth. Show what one `vulnerabilities[]` entry looks like. -->
+```bash
+snyk test --json > snyk-results.json
+# or for SARIF:
+snyk test --sarif-file-output=snyk-results.sarif
+```
 
-## What you can act on
+The top-level shape carries one entry per project / lockfile. The `vulnerabilities[]` array is where everything you'll touch lives.
 
-<!-- TODO: Useful fields: `id` (SNYK-XXX or CVE), `severity`, `packageName` + `version`, `from[]` (the dependency path showing how a transitive ended up in your build), `upgradePath[]` (which top-level bump fixes it), `isPatchable`, `fixedIn[]`. Ignore the rest until you need it. -->
+| Field | Purpose |
+|---|---|
+| `vulnerabilities[].id` | Snyk's identifier — `SNYK-JS-LODASH-1018905` or similar. Cross-referenced to CVE / GHSA below |
+| `vulnerabilities[].severity` | `critical` / `high` / `medium` / `low` |
+| `vulnerabilities[].packageName` + `.version` | The specific component version that's flagged |
+| `vulnerabilities[].from[]` | The dependency path as a list — index 0 is your project, last is the vulnerable component |
+| `vulnerabilities[].upgradePath[]` | Which top-level bump fixes it. `false` at index 0 means no top-level upgrade resolves it; later indices give the chain |
+| `vulnerabilities[].isPatchable` | Whether Snyk has a patch file (not always available) |
+| `vulnerabilities[].fixedIn[]` | The first version that includes the fix |
+| `vulnerabilities[].identifiers.CVE[]` | The CVE cross-reference — what you'd use to call `vulnetix vdb vuln` |
+| `vulnerabilities[].identifiers.CWE[]` | CWE classification |
+| `vulnerabilities[].exploit` | Snyk's exploit-maturity rating (`Mature` / `Proof of Concept` / `No Known Exploit`) |
+
+## Querying with jq
+
+```bash
+# Every finding as {id, cve, severity, package, version}
+jq '.vulnerabilities[] | {
+      id,
+      cve: .identifiers.CVE[0],
+      severity,
+      package: .packageName,
+      version,
+      fix: .fixedIn[0]
+    }' snyk-results.json
+
+# Filter to high + critical
+jq '.vulnerabilities[]
+    | select(.severity == "high" or .severity == "critical")
+    | {id, severity, package: .packageName}' snyk-results.json
+
+# Group by package — which deps account for most findings?
+jq '[.vulnerabilities[] | {package: .packageName}]
+    | group_by(.package)
+    | map({package: .[0].package, count: length})
+    | sort_by(-.count)' snyk-results.json
+
+# Walk the dependency path for one finding
+jq '.vulnerabilities[]
+    | select(.id == "SNYK-JS-LODASH-1018905")
+    | .from' snyk-results.json
+
+# All upgradePaths — the bumps that would resolve findings
+jq '.vulnerabilities[] | {
+      id,
+      from: .from[1],
+      upgradeTo: .upgradePath[1]
+    }' snyk-results.json
+```
+
+## From finding to root cause
+
+```bash
+# 1. Read the CVE for one finding (or all of them)
+CVE=$(jq -r '.vulnerabilities[0].identifiers.CVE[0]' snyk-results.json)
+
+# 2. Pull SSVC + KEV + EPSS from Vulnetix for the priority input
+vulnetix vdb vuln "$CVE" --output json \
+  | jq '.[0].containers.adp[0] | {
+          coordinator: .x_ssvc.decision,
+          exploitation: .x_exploitationMaturity.level,
+          kev: .x_kev.knownRansomwareCampaignUse,
+          epss: .x_exploitationMaturity.factors.epss
+        }'
+
+# 3. The affected functions/files — feed into reachability grep
+vulnetix vdb vuln "$CVE" --output json \
+  | jq -r '.[0].containers.adp[0].x_affectedRoutines[]?
+           | select(.kind == "function") | .name'
+
+# 4. Snyk's own upgrade suggestion
+jq '.vulnerabilities[]
+    | select(.identifiers.CVE[0] == env.CVE)
+    | .upgradePath' snyk-results.json
+```
+
+Apply the Engineer Triage inputs:
+
+- **Reachability** — `VERIFIED_REACHABLE` if the affected function name is referenced from your code; `VERIFIED_UNREACHABLE` if you can prove the call site is dead; `UNKNOWN` otherwise.
+- **Remediation Option** — read your lockfile's constraint for the affected component. Caret-range = `PATCHABLE_DEPLOYMENT`; exact pin = `PATCHABLE_VERSION_LOCKED`; no fixed version = `PATCH_UNAVAILABLE`.
+- **Mitigation Option** — usually `AUTOMATION` for SCA (let Dependabot / Renovate open the PR after the appendix-prescribed coercion).
+- **Priority** — Snyk's `severity` plus the Vulnetix `coordinator` + `exploitation` reads.
+
+See [SSVC Engineer Triage](../appendices/ssvc/) for the full decision tree.
+
+## Patching mechanics
+
+Lockfile editing, transitive coercion, and integrity verification are in the **[package managers appendix](../appendices/package-managers/)** — one page per ecosystem (`npm` lives under [JavaScript](../appendices/package-managers/javascript/), `pip` under [Python](../appendices/package-managers/python/), and so on).
 
 ## Decision tree
 
@@ -23,14 +114,106 @@ Is the vulnerable package declared in your SBOM?
   ├─ Yes → CycloneDX VEX entry referencing the PURL
   └─ No  → OpenVEX statement (transitive dep not declared, or build-time-only tool)
 
-Is the risk mitigated by a WAF, IPS, or SIEM rule?
+Is the risk mitigated by a WAF / IPS / SIEM rule from `vulnetix vdb traffic-filters <CVE>`?
   └─ If yes, status is `affected` with `workaround_available` and the rule reference
 {{< /decision >}}
 
-## Producing a CycloneDX VEX
+## Worked example: SNYK-JS-LODASH-1018905 (CVE-2021-23337)
 
-<!-- TODO: Snyk OSS findings map cleanly to SBOM components, so the CycloneDX VEX entry references the same PURL as the SBOM, the Snyk or CVE identifier, and an `analysis.state` of `not_affected` / `affected` / `fixed`. Show a worked example. -->
+Snyk flags `lodash@4.17.20` with a command-injection finding in `template`. The relevant slice of the JSON:
+
+```json
+{
+  "vulnerabilities": [{
+    "id": "SNYK-JS-LODASH-1018905",
+    "severity": "high",
+    "packageName": "lodash",
+    "version": "4.17.20",
+    "from": ["myapp@1.0.0", "express-templating@2.3.0", "lodash@4.17.20"],
+    "upgradePath": [false, "express-templating@2.3.0", "lodash@4.17.21"],
+    "fixedIn": ["4.17.21"],
+    "identifiers": {
+      "CVE": ["CVE-2021-23337"],
+      "CWE": ["CWE-77"]
+    },
+    "exploit": "Proof of Concept"
+  }]
+}
+```
+
+`upgradePath[0] = false` means there's no top-level upgrade of `myapp` itself that resolves it; the chain shows `express-templating` doesn't get upgraded but `lodash` jumps from 4.17.20 to 4.17.21. Translation: coerce the transitive directly. From the [JavaScript appendix](../appendices/package-managers/javascript/#npm-package-lockjson):
+
+```json
+{
+  "overrides": {
+    "lodash": "^4.17.21"
+  }
+}
+```
+
+```bash
+npm install
+npm ls lodash    # confirm every path resolves 4.17.21
+```
+
+Reachability: `lodash.template` is the affected function. Grep your codebase:
+
+```bash
+git grep -nE '\b_\.template\b|lodash/template|require\(["'"'"']lodash/template' src/
+```
+
+If `template` isn't called, Engineer Triage → `Reachability: VERIFIED_UNREACHABLE` → with `PATCHABLE_DEPLOYMENT` (caret range) → `NIGHTLY_AUTO_PATCH`. If it is called, the override still resolves the finding — `Remediation: PATCHABLE_DEPLOYMENT`, outcome: `NIGHTLY_AUTO_PATCH`.
+
+{{< outcome type="cyclonedx" >}}
+```json
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "vulnerabilities": [{
+    "id": "CVE-2021-23337",
+    "source": { "name": "NVD" },
+    "ratings": [{ "source": { "name": "Snyk", "url": "https://security.snyk.io/vuln/SNYK-JS-LODASH-1018905" }, "severity": "high" }],
+    "affects": [{
+      "ref": "pkg:npm/lodash@4.17.21",
+      "versions": [
+        { "version": "4.17.20", "status": "affected" },
+        { "version": "4.17.21", "status": "unaffected" }
+      ]
+    }],
+    "analysis": {
+      "state": "resolved",
+      "detail": "Engineer Triage: NIGHTLY_AUTO_PATCH. Inputs: reachability=VERIFIED_REACHABLE (lodash.template is called in src/render/email.js:42), remediation=PATCHABLE_DEPLOYMENT (transitive coerced via package.json overrides to ^4.17.21), mitigation=AUTOMATION (Renovate PR), priority=HIGH (Snyk severity + CVSS 7.2). Verified with npm ls lodash. Merged in MR !88."
+    }
+  }]
+}
+```
+{{< /outcome >}}
 
 ## Producing an OpenVEX
 
-<!-- TODO: For cases where the package isn't in the SBOM — direct-only SBOM, or a build-time tool not shipped with the artefact. Subject is the project; vulnerability is the Snyk ID; action_statement names the decision. -->
+For the rare case where the Snyk-flagged package isn't in your shipped artefact — a build-time tool, a dev dep, a transitive that an `npm prune --omit=dev` would strip — the subject is the repo at the scanned commit, not a packaged component.
+
+{{< outcome type="openvex" >}}
+```json
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/yourorg/yourrepo/vex/2026-05-14-snyk-001.json",
+  "author": "developer@example.com",
+  "timestamp": "2026-05-14T10:00:00Z",
+  "version": 1,
+  "statements": [{
+    "vulnerability": {
+      "name": "SNYK-JS-LODASH-1018905",
+      "description": "Command injection in lodash.template (CVE-2021-23337). See https://security.snyk.io/vuln/SNYK-JS-LODASH-1018905"
+    },
+    "products": [{
+      "@id": "https://github.com/yourorg/yourrepo",
+      "identifiers": { "purl": "pkg:github/yourorg/yourrepo@abc1234" }
+    }],
+    "status": "not_affected",
+    "justification": "component_not_present",
+    "action_statement": "lodash@4.17.20 is in devDependencies only — used by the test-fixture generator. The production Docker image is built from a multi-stage Dockerfile in which the runtime stage runs npm ci --omit=dev. Verified with docker run --rm app:test sh -c 'ls node_modules/lodash' returning no such directory."
+  }]
+}
+```
+{{< /outcome >}}

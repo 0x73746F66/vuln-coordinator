@@ -1,44 +1,246 @@
 ---
 title: "GitHub Secret Scanning"
-description: "GitHub's first-party token scanner — runs continuously, talks directly to issuing providers for verified leaks."
+description: "GitHub's first-party secret scanner — partner-token verification, Push Protection, REST + GraphQL access."
 weight: 70
 ---
 
-## What GitHub Secret Scanning does
+GitHub runs continuous secret scans across your repository (and across pushes if Push Protection is enabled). For partner tokens — AWS, Stripe, GCP, GitHub itself, Slack, Twilio, and 200+ more — the secret pattern matches plus the issuer-side verification can confirm whether the token is still active and auto-revoke it on detection.
 
-<!-- TODO: One paragraph. GitHub runs token-pattern scans across the entire repository (history included) and against new pushes. For partner tokens (AWS, Stripe, GCP, etc.) it goes one step further: it verifies the token with the issuer, and on a positive match the issuer can auto-revoke or notify. Findings appear on the Security tab; push protection blocks pushes that contain a known token shape. -->
+Alerts live on the Security tab. For triage at scale you'll use `gh api`, REST or GraphQL — both pull the same data.
 
-## Reading the output
+## What GitHub Secret Scanning finds
 
-<!-- TODO: The canonical API is `gh api /repos/{owner}/{repo}/secret-scanning/alerts` or the GraphQL `repository.secretScanningAlerts` connection. Each alert carries the `secret_type`, `secret_type_display_name`, `state`, `resolution`, `locations[]` (commit, blob path, line range), and — for verified partner secrets — a `validity` field. -->
+```bash
+# REST
+gh api /repos/{owner}/{repo}/secret-scanning/alerts --paginate > alerts.json
 
-## What you can act on
+# Or GraphQL when you want only specific fields
+gh api graphql --paginate -F owner=$OWNER -F repo=$REPO -f query='
+  query($owner:String!, $repo:String!, $cursor:String) {
+    repository(owner:$owner, name:$repo) {
+      secretScanningAlerts(first:100, after:$cursor, states:[OPEN]) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          number
+          state
+          secretType
+          secretTypeDisplayName
+          createdAt
+          publiclyLeaked
+        }
+      }
+    }
+  }' > alerts.json
+```
 
-<!-- TODO: `secret_type` (e.g. `aws_access_key_id`), `validity` (`active` / `inactive` / `unknown`), `state` (`open` / `resolved`), `resolution` (`false_positive` / `wont_fix` / `revoked` / `pattern_deleted` / `pattern_edited` / `used_in_tests`), `locations[].details` for commit + path. -->
+Per-alert fields (REST):
+
+| Field | Purpose |
+|---|---|
+| `number` | The alert's stable ID |
+| `state` | `open` / `resolved` |
+| `resolution` | When resolved: `false_positive` / `wont_fix` / `revoked` / `pattern_deleted` / `pattern_edited` / `used_in_tests` |
+| `secret_type` | The detector's canonical identifier — `aws_access_key_id`, `github_personal_access_token`, `stripe_api_key`, etc. |
+| `secret_type_display_name` | Human-readable name |
+| `validity` | `active` / `inactive` / `unknown` — only set for partner-token introspection |
+| `publicly_leaked` | Boolean — set if the secret was pushed to a public location |
+| `multi_repo` | Boolean — set if the same secret appears in multiple repos |
+| `locations[].details.path` + `.commit_sha` + `.blob_sha` + `.start_line` + `.end_line` | Where the secret lives |
+| `push_protection_bypassed` | Boolean — was push protection bypassed by the committer |
+| `push_protection_bypassed_reason` | If yes, why |
+
+## Querying with jq
+
+```bash
+# Active partner tokens — start here
+jq '[.[] | select(.state == "open" and .validity == "active") | {
+       number,
+       type: .secret_type,
+       leaked: .publicly_leaked,
+       commit: .locations[0].details.commit_sha,
+       path: .locations[0].details.path
+     }]' alerts.json
+
+# Group by secret type to plan rotation work
+jq '[.[] | select(.state == "open") | {type: .secret_type}]
+    | group_by(.type)
+    | map({type: .[0].type, count: length})
+    | sort_by(-.count)' alerts.json
+
+# Bypassed Push Protection — incidents in disguise
+jq '.[] | select(.push_protection_bypassed == true)' alerts.json
+
+# Validity check for everything — feeds into priority decisions
+jq '.[] | {number, type: .secret_type, validity, state}' alerts.json
+```
+
+## Partner tokens vs generic patterns
+
+14+ of GitHub's detectors are partner-shape tokens whose issuers participate in the [GitHub partner programme](https://docs.github.com/en/code-security/secret-scanning/secret-scanning-partner-program). When such a token gets pushed to a public repo, GitHub notifies the issuer, who can auto-revoke immediately. The alert's `validity` field reflects the partner's response: `active` (token still works), `inactive` (issuer has revoked it), or `unknown` (no partner verification — usually generic patterns).
+
+The implication for triage: a partner-shape token leaked to a **public** repo is often already revoked by the time you read the alert. Check `validity` first. The remaining rotation steps (history purge, related-leak scan, prevention) still apply.
+
+For non-partner shapes (private keys, generic high-entropy, internal API keys) and any leak to a **private** repo, the issuer can't help — rotate yourself.
+
+## From finding to root cause
+
+The five-step rotation playbook is covered in detail on **[Vulnetix's secrets page](vulnetix/secrets/#the-five-step-rotation-playbook)**. The GitHub-specific notes:
+
+```bash
+# 1. For partner tokens, check validity first
+gh api /repos/{owner}/{repo}/secret-scanning/alerts/<number> --jq '.validity'
+
+# 2. Rotate at the issuer (varies per partner)
+
+# 3. Mark resolved on GitHub so the alert closes
+gh api -X PATCH /repos/{owner}/{repo}/secret-scanning/alerts/<number> \
+  -F state=resolved -F resolution=revoked
+
+# 4. Purge from history
+gh api /repos/{owner}/{repo}/secret-scanning/alerts/<number>/locations \
+  --jq '.[].details.commit_sha' | sort -u > commits-to-purge.txt
+git filter-repo --replace-text replacements.txt   # or path-based
+
+# 5. Enable Push Protection at the org level if not already
+gh api -X PATCH /orgs/{org} \
+  -F secret_scanning_push_protection_enabled_for_new_repositories=true
+```
+
+## Engineer Triage for secrets
+
+Same as the [GitLab Secrets page](gitlab-secrets/#engineer-triage-for-secrets):
+
+- **Reachability** = `VERIFIED_REACHABLE`
+- **Remediation Option** = `PATCHABLE_MANUAL` (rotate / replace / purge)
+- **Mitigation Option** = `CODE_CHANGE` + `AUTOMATION` (Push Protection)
+- **Priority** = `CRITICAL` for active partner tokens leaked publicly; `HIGH` for active in a private repo; `LOW` for fixtures
+
+Outcome: `DROP_TOOLS` for active credentials; `BACKLOG` for confirmed fixtures.
+
+See [SSVC Engineer Triage](../appendices/ssvc/).
 
 ## Decision tree
 
-Secrets are not SBOM components. Decisions are always OpenVEX, and the action order matters more than the format.
-
 {{< decision >}}
-Is the alert a verified-active partner token, or a regex match against a fixture / test value?
-  ├─ Fixture / test → OpenVEX `not_affected`,
-  │                   justification `vulnerable_code_not_present`,
-  │                   resolve the GitHub alert as `used_in_tests` so it stops appearing
-  └─ Active token ↓
+Is .validity == "active"?
+  ├─ Yes → DROP_TOOLS, run the five-step playbook now
+  ├─ No (inactive) → partner already revoked; still purge history + scan for related
+  └─ Unknown → assume active until proven otherwise
 
-Rotate the credential immediately. If GitHub's partner integration already revoked it (validity flipped to `inactive` after the push), you still owe a replacement.
-
-Purge from history if the repo is private. For a public repo the token must be considered exposed forever, regardless of what `git filter-repo` does — but rewriting history is still worth it to stop the alert re-firing.
-
-  → OpenVEX `fixed`. `action_statement` records: the rotation timestamp, the new vault location,
-    the history-rewrite commit, and the GitHub alert URL.
+Is .publicly_leaked == true?
+  ├─ Yes → secret must be considered exposed forever (caches, archives, forks).
+  │        History rewrite reduces future exposure, not past.
+  └─ No  → private-repo leak; rotation + history purge contains the exposure
 {{< /decision >}}
 
-## Producing a CycloneDX VEX
+## Worked example: `ghp_*` GitHub PAT leak
 
-<!-- TODO: Not applicable — secrets aren't SBOM components. -->
+GitHub Secret Scanning fires alert #88 against a `.env.local` committed to a public repo:
 
-## Producing an OpenVEX
+```json
+{
+  "number": 88,
+  "state": "open",
+  "secret_type": "github_personal_access_token",
+  "secret_type_display_name": "GitHub Personal Access Token",
+  "validity": "active",
+  "publicly_leaked": true,
+  "push_protection_bypassed": false,
+  "locations": [{
+    "type": "commit",
+    "details": {
+      "path": ".env.local",
+      "commit_sha": "abc1234def5678",
+      "blob_sha": "9abcdef0",
+      "start_line": 3
+    }
+  }]
+}
+```
 
-<!-- TODO: Worked example. Subject is the repo at a specific commit; vulnerability is the alert ID combined with `secret_type`; action_statement names the rotation, the resolution chosen on GitHub, and the history-rewrite evidence. -->
+Validity is `active`. Drop tools. Rotate:
+
+```bash
+# Get the token ID (from gh's own auth records, not the leaked token)
+gh auth status
+
+# Revoke via the API — the token itself isn't in the alert payload,
+# you read it from .env.local before deleting:
+LEAKED=$(grep '^GITHUB_TOKEN=' .env.local | cut -d= -f2)
+# Revoke through Settings UI: github.com/settings/tokens → find by leaked
+# prefix → Revoke. Or for fine-grained PATs: /settings/personal-access-tokens.
+
+# Mark the alert resolved
+gh api -X PATCH /repos/{owner}/{repo}/secret-scanning/alerts/88 \
+  -F state=resolved -F resolution=revoked
+
+# Purge from history
+git filter-repo --path .env.local --invert-paths --force
+git push --force-with-lease origin main
+
+# Scan history for related leaks
+gitleaks detect --log-opts="--all" --redact --report-path gitleaks-history.json
+
+# Add .env* to .gitignore + enable Push Protection at the org level
+echo '.env*' >> .gitignore
+```
+
+For a `ghp_*` token leaked publicly, also rotate **anything that token had access to** — issue keys it pushed to, repos it had write access to, secrets it could read. The token is permanently considered exposed; the post-rotation review is whether anything was abused before revocation.
+
+{{< outcome type="openvex" >}}
+```json
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/yourorg/yourrepo/vex/2026-05-14-ghsec-088.json",
+  "author": "developer@example.com",
+  "timestamp": "2026-05-14T10:30:00Z",
+  "version": 1,
+  "statements": [{
+    "vulnerability": {
+      "name": "github-secret-scanning:github_personal_access_token",
+      "description": "GitHub PAT leaked in .env.local (commit abc1234). Alert #88. CWE-798."
+    },
+    "products": [{
+      "@id": "https://github.com/yourorg/yourrepo",
+      "identifiers": { "purl": "pkg:github/yourorg/yourrepo" }
+    }],
+    "status": "fixed",
+    "action_statement": "Engineer Triage: DROP_TOOLS. Five-step playbook executed. ghp_* token revoked via Settings → PATs at 2026-05-14T09:18Z. .env.local removed from history via git filter-repo + force-push at 2026-05-14T10:00Z. gitleaks history scan shows no related leaks. .env* added to .gitignore. Push Protection enabled at org level. GitHub alert #88 resolved with resolution=revoked. The publicly-leaked token is considered permanently exposed; audit of org Actions runs in the leak window (2026-05-13T14:22Z → 2026-05-14T09:18Z) shows no anomalous activity. Incident INC-2026-051."
+  }]
+}
+```
+{{< /outcome >}}
+
+## False-positive: a token shape that's actually a placeholder
+
+```bash
+# Resolve the alert as 'used in tests'
+gh api -X PATCH /repos/{owner}/{repo}/secret-scanning/alerts/<number> \
+  -F state=resolved -F resolution=used_in_tests \
+  -F resolution_comment='Documented example token from tests/fixtures/'
+```
+
+{{< outcome type="openvex" >}}
+```json
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/yourorg/yourrepo/vex/2026-05-14-ghsec-099.json",
+  "author": "developer@example.com",
+  "timestamp": "2026-05-14T10:00:00Z",
+  "version": 1,
+  "statements": [{
+    "vulnerability": {
+      "name": "github-secret-scanning:stripe_api_key",
+      "description": "Stripe test-mode key sk_test_... in tests/fixtures/stripe-mock.js:12. Test-mode keys cannot move real money."
+    },
+    "products": [{
+      "@id": "https://github.com/yourorg/yourrepo",
+      "identifiers": { "purl": "pkg:github/yourorg/yourrepo@abc1234" }
+    }],
+    "status": "not_affected",
+    "justification": "vulnerable_code_not_present",
+    "action_statement": "Engineer Triage: BACKLOG. Stripe test-mode keys are documented as safe to embed — they only access Stripe's test mode and cannot move funds. Resolved GitHub alert #99 with resolution=used_in_tests."
+  }]
+}
+```
+{{< /outcome >}}

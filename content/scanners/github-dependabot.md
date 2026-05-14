@@ -1,39 +1,244 @@
 ---
 title: "GitHub Dependabot"
-description: "Dependency alerts and automated upgrade pull requests, driven by the GitHub Advisory Database."
+description: "GitHub's first-party dep scanner — Security tab alerts + auto-upgrade MRs, accessed via GraphQL / REST."
 weight: 60
 ---
 
-## What Dependabot does
+Dependabot watches your repository's resolved dependency graph against the GitHub Advisory Database and surfaces every match in three places: as alerts under the Security tab, as auto-generated merge requests that bump the affected lockfile, and as a GraphQL / REST endpoint for programmatic access. The first two are UIs over the same data; the third is what you'll automate against for triage and reporting.
 
-<!-- TODO: One paragraph. Dependabot watches the dependency graph (extracted from manifest files in your repo) and matches it against the GitHub Advisory Database. It surfaces in three places: the Security tab as Dependabot alerts, automatic upgrade MRs that bump the lockfile, and the `dependabot-action` GraphQL API for programmatic access. -->
+Auto-upgrade MRs are the lever that makes Dependabot different from a vanilla SCA scanner. When the alert and the bot agree on the bump, the workflow is "review the MR, confirm green CI, merge" — most of Engineer Triage resolves to `NIGHTLY_AUTO_PATCH` for them.
 
-## Reading the output
+## What Dependabot finds
 
-<!-- TODO: For VEX work the canonical source is the GraphQL `repository.vulnerabilityAlerts` endpoint, or `gh api graphql -f query='...'`. The Security tab and the auto-generated upgrade MRs are UI views over the same data. Show what one `vulnerabilityAlert` node looks like. -->
+Dependabot doesn't write a file on disk in your repo. Findings live on the GitHub side and you fetch them via `gh`:
 
-## What you can act on
+```bash
+# REST — most flexible for shell pipelines
+gh api /repos/{owner}/{repo}/dependabot/alerts --paginate > alerts.json
 
-<!-- TODO: `securityVulnerability.advisory.ghsaId` + `.identifiers[].value` (GHSA + CVE), `securityVulnerability.package.name`, `vulnerableManifestPath`, `securityVulnerability.firstPatchedVersion.identifier`, `securityVulnerability.severity`. -->
+# Or GraphQL — when you want only the fields you'll use
+gh api graphql --paginate -F owner=$OWNER -F repo=$REPO -f query='
+  query($owner:String!,$repo:String!,$cursor:String) {
+    repository(owner:$owner,name:$repo) {
+      vulnerabilityAlerts(first:100, after:$cursor, states:[OPEN]) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          number
+          state
+          securityVulnerability {
+            severity
+            package { ecosystem name }
+            firstPatchedVersion { identifier }
+            advisory {
+              ghsaId
+              summary
+              identifiers { type value }
+            }
+          }
+          vulnerableManifestPath
+          vulnerableRequirements
+        }
+      }
+    }
+  }' > alerts.json
+```
+
+Per-alert fields you'll triage on:
+
+| Field | Purpose |
+|---|---|
+| `number` | The alert's stable ID — used to dismiss / re-open via the API |
+| `state` | `open` / `fixed` / `dismissed` / `auto_dismissed` |
+| `securityVulnerability.severity` | `CRITICAL` / `HIGH` / `MODERATE` / `LOW` |
+| `securityVulnerability.package.ecosystem` + `.name` | The affected component, ecosystem-tagged |
+| `securityVulnerability.firstPatchedVersion.identifier` | The fixed version (when known) |
+| `securityVulnerability.advisory.ghsaId` | GHSA reference |
+| `securityVulnerability.advisory.identifiers[]` | Cross-refs to CVE / Snyk / OSV |
+| `vulnerableManifestPath` | Which manifest file declares the affected dep |
+| `vulnerableRequirements` | The version range your manifest pins |
+| `auto_dismissed_at` | Set when Dependabot auto-dismissed (rule changes, version corrected, etc.) |
+| `dismissed_reason` | When manually dismissed: `fix_started` / `inaccurate` / `no_bandwidth` / `not_used` / `tolerable_risk` |
+
+## Querying with jq
+
+```bash
+# Every open alert flattened
+jq '[.[] | select(.state == "open") | {
+       number,
+       ghsa: .security_advisory.ghsa_id,
+       cve: (.security_advisory.cve_id // "n/a"),
+       severity: .security_advisory.severity,
+       package: .security_vulnerability.package.name,
+       ecosystem: .security_vulnerability.package.ecosystem,
+       fix: .security_vulnerability.first_patched_version.identifier,
+       manifest: .dependency.manifest_path
+     }]' alerts.json
+
+# Critical + high only
+jq '.[] | select(.state == "open"
+                 and (.security_advisory.severity == "critical"
+                      or .security_advisory.severity == "high"))' alerts.json
+
+# Group by ecosystem to split the work
+jq '[.[] | select(.state == "open")
+         | {ecosystem: .security_vulnerability.package.ecosystem}]
+    | group_by(.ecosystem)
+    | map({ecosystem: .[0].ecosystem, count: length})' alerts.json
+
+# CVE / GHSA list — feed into vulnetix vdb in a loop
+jq -r '.[] | select(.state == "open")
+           | .security_advisory.cve_id // .security_advisory.ghsa_id' \
+   alerts.json | sort -u
+```
+
+## From finding to root cause
+
+Dependabot's strongest signal is the auto-generated MR. If one exists for an alert, the triage path is short:
+
+```bash
+# Find the auto-upgrade MR for one alert
+ALERT_NUMBER=42
+gh pr list --repo "$OWNER/$REPO" --search "dependabot/$ALERT_NUMBER in:branch" --json number,title,state,url
+
+# Or list every Dependabot-authored MR in one shot
+gh pr list --repo "$OWNER/$REPO" --author "app/dependabot" --state open
+```
+
+For the alerts without an auto-MR (the bot can't always propose a safe bump — peer-dep conflicts, missing fixed versions in your ecosystem, restricted scope), pivot to `vulnetix vdb`:
+
+```bash
+# Pull Engineer Triage priority input + affected routines
+CVE=$(jq -r '.security_advisory.cve_id' alert.json)
+vulnetix vdb vuln "$CVE" --output json \
+  | jq '.[0].containers.adp[0] | {
+          coordinator: .x_ssvc.decision,
+          exploitation: .x_exploitationMaturity.level,
+          kev: .x_kev.knownRansomwareCampaignUse,
+          routines: .x_affectedRoutines
+        }'
+```
+
+Engineer Triage inputs from the alert + Vulnetix:
+
+- **Reachability** — grep the codebase for the names in `x_affectedRoutines`, then use the ecosystem-specific reachability tool from the [package managers appendix](../appendices/package-managers/).
+- **Remediation Option** — auto-MR exists → `PATCHABLE_DEPLOYMENT`. Auto-MR can't be opened (Dependabot says no safe bump) → `PATCHABLE_VERSION_LOCKED` or `PATCHABLE_MANUAL` depending on whether the constraint is the blocker.
+- **Mitigation Option** — almost always `AUTOMATION` for Dependabot (the bot is the mitigation tool).
+- **Priority** — alert severity + Vulnetix coordinator / exploitation reads.
+
+See [SSVC Engineer Triage](../appendices/ssvc/) for the framework.
 
 ## Decision tree
 
 {{< decision >}}
 Is the vulnerable package declared in your SBOM?
-  ├─ Yes → CycloneDX VEX entry referencing the PURL
-  └─ No  → OpenVEX statement (transitive not in SBOM, or dev-only dep)
+  ├─ Yes → CycloneDX VEX entry referencing the PURL from the SBOM
+  └─ No  → OpenVEX statement (dev-only dep, or a transitive your SBOM doesn't declare)
 
 Has the auto-upgrade MR been merged?
-  └─ If yes, the matching VEX entry sets `analysis.state: fixed` and the merge commit becomes the action evidence
+  └─ If yes, the VEX entry's analysis.state is `resolved` and the merge commit is the action evidence
 
-Is the risk mitigated by a WAF, IPS, or SIEM rule?
-  └─ If yes, status is `affected` with `workaround_available` and the rule reference
+Need a WAF / IPS / SIEM mitigation while the upgrade is pending?
+  └─ vulnetix vdb traffic-filters <CVE> supplies the rule; status is `affected` + `workaround_available`
 {{< /decision >}}
 
-## Producing a CycloneDX VEX
+## Worked example: a Dependabot alert on `lodash@4.17.20` (GHSA-35jh-r3h4-6jhm)
 
-<!-- TODO: Worked example. Dependabot's GHSA + CVE both go into `vulnerabilities[].id` and `.references[]`. Reference the PURL from your SBOM. -->
+Dependabot raises alert #58 against `lodash@4.17.20` in a Node.js project. The alert payload:
+
+```json
+{
+  "number": 58,
+  "state": "open",
+  "dependency": {
+    "package": { "ecosystem": "npm", "name": "lodash" },
+    "manifest_path": "package-lock.json"
+  },
+  "security_advisory": {
+    "ghsa_id": "GHSA-35jh-r3h4-6jhm",
+    "cve_id": "CVE-2021-23337",
+    "severity": "high",
+    "summary": "Command injection in lodash"
+  },
+  "security_vulnerability": {
+    "package": { "ecosystem": "npm", "name": "lodash" },
+    "vulnerable_version_range": "< 4.17.21",
+    "first_patched_version": { "identifier": "4.17.21" }
+  }
+}
+```
+
+Dependabot opens an MR — typically titled "Bump lodash from 4.17.20 to 4.17.21". Confirm:
+
+```bash
+gh pr list --author "app/dependabot" --search "lodash" --json number,title,url,statusCheckRollup
+```
+
+Run Engineer Triage:
+
+- **Reachability** = `VERIFIED_REACHABLE` (lodash is imported across the codebase — `git grep -l lodash src/` returns 14 files)
+- **Remediation Option** = `PATCHABLE_DEPLOYMENT` (caret range `^4.17.20` in `package.json` accepts 4.17.21; the MR proves it)
+- **Mitigation Option** = `AUTOMATION` (Dependabot is the automation)
+- **Priority** = `HIGH` (alert severity; Vulnetix coordinator returns `Track*`, exploitation `POC`, EPSS ~0.2 — no urgency multiplier)
+
+Outcome: `NIGHTLY_AUTO_PATCH`. Review the MR's diff, confirm CI is green, merge.
+
+{{< outcome type="cyclonedx" >}}
+```json
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "vulnerabilities": [{
+    "id": "CVE-2021-23337",
+    "source": {
+      "name": "GitHub Advisory Database",
+      "url": "https://github.com/advisories/GHSA-35jh-r3h4-6jhm"
+    },
+    "ratings": [{ "source": { "name": "GitHub" }, "severity": "high" }],
+    "affects": [{
+      "ref": "pkg:npm/lodash@4.17.21",
+      "versions": [
+        { "version": "4.17.20", "status": "affected" },
+        { "version": "4.17.21", "status": "unaffected" }
+      ]
+    }],
+    "analysis": {
+      "state": "resolved",
+      "detail": "Engineer Triage: NIGHTLY_AUTO_PATCH. Dependabot alert #58 (GHSA-35jh-r3h4-6jhm). Inputs: reachability=VERIFIED_REACHABLE, remediation=PATCHABLE_DEPLOYMENT (caret range allows 4.17.21), mitigation=AUTOMATION (Dependabot auto-MR), priority=HIGH. Merged Dependabot MR !212 on 2026-05-14T22:00Z after green CI. Alert auto-closed to state=fixed."
+    }
+  }]
+}
+```
+{{< /outcome >}}
 
 ## Producing an OpenVEX
 
-<!-- TODO: Worked example for dev-only deps (the SBOM is production-only) or accepted risks. Subject is the repo; vulnerability is the GHSA; action_statement references the Dependabot alert URL. -->
+When the alert is on a dev-only dep or you decide to dismiss it:
+
+{{< outcome type="openvex" >}}
+```json
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/yourorg/yourrepo/vex/2026-05-14-dependabot-058.json",
+  "author": "developer@example.com",
+  "timestamp": "2026-05-14T10:00:00Z",
+  "version": 1,
+  "statements": [{
+    "vulnerability": {
+      "name": "CVE-2021-23337",
+      "description": "Command injection in lodash.template. GHSA-35jh-r3h4-6jhm. Dependabot alert #58."
+    },
+    "products": [{
+      "@id": "https://github.com/yourorg/yourrepo",
+      "identifiers": { "purl": "pkg:github/yourorg/yourrepo@abc1234" }
+    }],
+    "status": "not_affected",
+    "justification": "vulnerable_code_not_in_execute_path",
+    "action_statement": "Engineer Triage: BACKLOG. lodash@4.17.20 is in devDependencies via the test fixture generator. Production npm ci --omit=dev strips it from the shipped artefact. Dismissed Dependabot alert #58 with reason 'not_used'. Will pick up the bump on the next regular dev-deps refresh."
+  }]
+}
+```
+{{< /outcome >}}
+
+## Patching mechanics
+
+The [package managers appendix](../appendices/package-managers/) covers lockfile editing, transitive coercion, and integrity verification for every supported ecosystem — useful for the alerts Dependabot can't auto-upgrade.

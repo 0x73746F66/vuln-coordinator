@@ -152,7 +152,7 @@ Scanner: `npm audit` flags lodash 4.17.15 (CVSS 7.2 HIGH, fix in 4.17.21).
 
 | Input | Value | Why |
 |---|---|---|
-| Reachability | `VERIFIED_REACHABLE` | `grep -r "lodash" src/` finds imports across the codebase |
+| Reachability | `VERIFIED_REACHABLE` | `vulnetix vdb vuln <CVE> --output json \| jq -r '.[0].containers.adp[0].x_affectedRoutines[] \| select(.kind=="function") \| .name' \| xargs -I{} git grep -nE '\b{}\b' src/` finds imports across the codebase |
 | Remediation | `PATCHABLE_DEPLOYMENT` | `package.json` has `"lodash": "^4.17.15"` — caret range allows 4.17.21 |
 | Mitigation | `AUTOMATION` | Dependabot can open the PR; CI verifies |
 | Priority | `HIGH` | CVSS 7.2 |
@@ -194,7 +194,7 @@ For CycloneDX VEX:
 ```json
 "analysis": {
   "state": "resolved",
-  "detail": "Engineer Triage: NIGHTLY_AUTO_PATCH. Inputs: reachability=VERIFIED_REACHABLE (grep shows lodash imported across src/utils/), remediation=PATCHABLE_DEPLOYMENT (^4.17.15 allows the fixed 4.17.21), mitigation=AUTOMATION (Dependabot PR), priority=HIGH (CVSS 7.2). Auto-patched in commit abc1234, MR !42, deployed to prod 2026-05-14T22:00Z."
+  "detail": "Engineer Triage: NIGHTLY_AUTO_PATCH. Inputs: reachability=VERIFIED_REACHABLE (git grep of x_affectedRoutines from `vdb vuln` shows lodash.template imports across src/utils/), remediation=PATCHABLE_DEPLOYMENT (^4.17.15 allows the fixed 4.17.21), mitigation=AUTOMATION (Dependabot PR), priority=HIGH (CVSS 7.2). Auto-patched in commit abc1234, MR !42, deployed to prod 2026-05-14T22:00Z."
 }
 ```
 

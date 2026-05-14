@@ -193,7 +193,15 @@ Each [package managers appendix page](../../../appendices/package-managers/) car
 ### JavaScript / TypeScript
 
 - Static: `npm ls <pkg> --all` walks the dep tree to show every path that pulls in the pkg. `madge --image graph.svg src/` visualises the import graph of your own code.
-- Bundler analysis: `esbuild --bundle --metafile=meta.json src/index.ts` produces a JSON metafile listing every imported symbol; `grep` for the vulnerable function name confirms reach.
+- Bundler analysis: `esbuild --bundle --metafile=meta.json src/index.ts` produces a JSON metafile listing every imported symbol. Pull the symbol list from the advisory rather than typing it:
+  ```bash
+  vulnetix vdb vuln <CVE> --output json \
+    | jq -r '.[0].containers.adp[0].x_affectedRoutines[]
+             | select(.kind=="function") | .name' \
+    | xargs -I{} jq -r --arg fn {} \
+        '.inputs | to_entries[] | select(.value.imports[]?.path | contains($fn)) | .key' \
+        meta.json
+  ```
 - Runtime: c8 / nyc coverage during integration tests. If the file that imports the vulnerable lib never gets covered, the static reach is dead in practice.
 
 ### Python
@@ -402,6 +410,11 @@ jq -r '.[0].containers.adp[0].x_affectedRoutines[]
        | select(.kind == "function") | .name' /tmp/cve.json \
   | xargs -I{} jdeps --multi-release 17 --print-module-deps target/myapp.jar 2>&1 \
   | grep -i '{}'
+
+# The two patterns below are CVE-specific sink heuristics — not derived from
+# x_affectedRoutines. They complement the routine-driven check above by
+# looking for the *input-tainting* and *defensive-config* call sites that the
+# advisory list alone can't tell you about.
 
 # Source-level: do you log anything from request data without scrubbing?
 git grep -nE 'logger\.(info|warn|error|debug|trace)\([^)]*(request|req\.|input|userAgent|param)' \

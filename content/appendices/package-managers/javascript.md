@@ -51,7 +51,15 @@ Yarn's `resolutions` field accepts glob-style paths (`some-pkg/**/lodash`) for s
 
 ## Reachability
 
-- Bundler analysis: `esbuild --bundle --metafile=meta.json src/index.ts` produces a JSON metafile listing every imported symbol; `grep` for the vulnerable function name confirms reach.
+- Bundler analysis: `esbuild --bundle --metafile=meta.json src/index.ts` produces a JSON metafile listing every imported symbol. Drive the lookup from `x_affectedRoutines` so the grep targets come from the advisory, not your memory:
+  ```bash
+  vulnetix vdb vuln <CVE> --output json \
+    | jq -r '.[0].containers.adp[0].x_affectedRoutines[]
+             | select(.kind=="function") | .name' \
+    | xargs -I{} jq -r --arg fn {} \
+        '.inputs | to_entries[] | select(.value.imports[]?.path | contains($fn)) | .key' \
+        meta.json
+  ```
 - `npm ls <pkg> --all` walks the dep tree to show every path that pulls in the pkg.
 - `madge --image graph.svg src/` visualises the import graph of your own code.
 - Runtime: c8 / nyc coverage during integration tests. If the file that imports the vulnerable lib never gets covered, the static reach is dead in practice.
