@@ -28,7 +28,7 @@ new-scanner name:
     set -e
     mkdir -p content/scanners
     out="content/scanners/{{ name }}.md"
-    python3 _scripts/new-guide.py scanner "{{ name }}" "$out"
+    uv run _scripts/new-guide.py scanner "{{ name }}" "$out"
     echo "Created $out"
 
 # Create a new rules guide stub — just new-rule my-rule
@@ -37,7 +37,7 @@ new-rule name:
     set -e
     mkdir -p content/rules
     out="content/rules/{{ name }}.md"
-    python3 _scripts/new-guide.py rule "{{ name }}" "$out"
+    uv run _scripts/new-guide.py rule "{{ name }}" "$out"
     echo "Created $out"
 
 # Validate Hugo config and templates
