@@ -343,18 +343,18 @@ This pins log4j-core even when Spring Boot's BOM resolves an older version. Use 
 {{< /tab >}}
 {{< /tabs >}}
 
-Now build the reachability check. The right starting point is what Vulnetix itself knows about the vuln — pull the structured intel and find the affected class/function name to grep for.
+Now build the reachability check. Pull `x_affectedRoutines` from the enriched vuln record — it's the canonical list of affected functions and files, deduplicated from the CVE 5.x `programRoutines` / `programFiles` plus the AI-derived `x_affectedFunctions`.
 
 ```bash
 # Fetch the full advisory enrichment
 vulnetix vdb vuln CVE-2021-44228 --output json > /tmp/cve.json
 
-# Severity + KEV + EPSS in one shot (the "is this urgent?" view)
+# Severity + KEV + EPSS + Coordinator decision in one shot
 jq '.[0].containers.adp[0] | {
       exploitation: .x_exploitationMaturity.level,
       epss: .x_exploitationMaturity.factors.epss,
       kev_listed: .x_kev.knownRansomwareCampaignUse,
-      ssvc: .x_ssvc.decision,
+      coordinator: .x_ssvc.decision,
       attack_surface: .x_attackSurface.reasoning,
       cwes: .x_kev.cwes
     }' /tmp/cve.json
@@ -362,33 +362,46 @@ jq '.[0].containers.adp[0] | {
 #      "exploitation": "ACTIVE",
 #      "epss": 0.94,
 #      "kev_listed": "Known",
-#      "ssvc": "Act",
+#      "coordinator": "Act",
 #      "attack_surface": "Remotely exploitable; Low complexity; No privileges; No user interaction",
 #      "cwes": ["CWE-20", "CWE-400", "CWE-502"]
 #    }
 
-# Pull the patch PR — the source of truth for which class/method changed
-vulnetix vdb fixes CVE-2021-44228 --output json > /tmp/fixes.json
+# The affected functions and files — what to grep for
+jq '.[0].containers.adp[0].x_affectedRoutines' /tmp/cve.json
+# →  [
+#      { "kind": "function", "name": "org.apache.logging.log4j.core.lookup.JndiLookup.lookup" },
+#      { "kind": "function", "name": "org.apache.logging.log4j.core.pattern.MessagePatternConverter.format" },
+#      { "kind": "file", "path": "log4j-core/src/main/java/org/apache/logging/log4j/core/lookup/JndiLookup.java" },
+#      ...
+#    ]
 
-# Source-code patches (the URLs whose diffs name the affected class)
-jq '.fixes.sourceCode[] | select(.type == "pr") | .url' /tmp/fixes.json | sort -u
-# →  "https://github.com/apache/logging-log4j2/pull/608"
-#    "https://github.com/github/advisory-database/pull/5501"
-
-# CWE-keyed remediation guidance
-jq '.cweRemediations[]' /tmp/fixes.json
-# →  "Mitigate CWE-917: Review and apply appropriate controls"
-
-# KEV-required action (CISA's official wording — useful for tickets / compliance)
-jq -r '.kevRequiredAction' /tmp/fixes.json
+# Attack paths — tactic → ATT&CK techniques
+jq '.[0].containers.adp[0].x_attackPaths' /tmp/cve.json
+# →  [
+#      { "tactic": "Initial Access",
+#        "techniques": [{ "id": "T1190", "name": "Exploit Public-Facing Application", "relation": "primary_method" }] },
+#      { "tactic": "Execution",
+#        "techniques": [{ "id": "T1059", "name": "Command and Scripting Interpreter", "relation": "post_exploit" }] }
+#    ]
 ```
 
-Read the linked patch PR (`apache/logging-log4j2#608`); it names `org.apache.logging.log4j.core.lookup.JndiLookup` as the class to gate behind a `formatMsgNoLookups=true` flag. That class name is what you grep your codebase for:
+If `x_affectedRoutines` isn't yet populated for the CVE (the AI enrichment hasn't run, or you're on a stale cache), fall back to the patch PR — the URL is in `vdb fixes`:
 
 ```bash
-# Static: is JndiLookup actually reachable from your built artefact?
-jdeps --multi-release 17 --print-module-deps target/myapp.jar 2>&1 \
-  | grep -i 'log4j.core.lookup'
+vulnetix vdb fixes CVE-2021-44228 --output json \
+  | jq '.fixes.sourceCode[] | select(.type == "pr") | .url' | sort -u
+# →  "https://github.com/apache/logging-log4j2/pull/608"
+```
+
+Either way, you end up with class/function names to grep your codebase for:
+
+```bash
+# Static: are the affected routines actually in your build's classpath?
+jq -r '.[0].containers.adp[0].x_affectedRoutines[]
+       | select(.kind == "function") | .name' /tmp/cve.json \
+  | xargs -I{} jdeps --multi-release 17 --print-module-deps target/myapp.jar 2>&1 \
+  | grep -i '{}'
 
 # Source-level: do you log anything from request data without scrubbing?
 git grep -nE 'logger\.(info|warn|error|debug|trace)\([^)]*(request|req\.|input|userAgent|param)' \
@@ -401,7 +414,18 @@ git grep -nE 'formatMsgNoLookups|log4j2.formatMsgNoLookups' .
 jq '.dependencies[] | select(.dependsOn | index("log4j-core@2.14.1"))' .vulnetix/sbom.cdx.json
 ```
 
-If the app uses Logback (Spring Boot's default) and log4j-core is only on the classpath as a transitive — `JndiLookup` never instantiated, no `lookup()` call site reachable from request input — `vulnerable_code_not_in_execute_path` is honest. The grep evidence + the jdeps output is what goes in the `analysis.detail` of the VEX.
+If the app uses Logback (Spring Boot's default) and log4j-core is only on the classpath as a transitive — `JndiLookup.lookup` never instantiated, no `MessagePatternConverter.format` call site reachable from request input — Engineer Triage's `Reachability` resolves to `VERIFIED_UNREACHABLE`, and the VEX justification is `vulnerable_code_not_in_execute_path`. The `x_affectedRoutines` list + the jdeps output + the grep evidence is what goes in the `analysis.detail`.
+
+The `x_attackPaths` data isn't used for reachability — it drives **detection-rule selection** for the WAF / IPS / SIEM layer. Feed each technique ID to `vdb snort-rules` and `vdb nuclei` to pull the existing detection content per attack path:
+
+```bash
+jq -r '.[0].containers.adp[0].x_attackPaths[]
+       | .techniques[] | .id' /tmp/cve.json | sort -u \
+  | while read tid; do
+      echo "== ATT&CK $tid =="
+      vulnetix vdb snort-rules list --technique "$tid" --severity high --limit 5
+    done
+```
 
 {{< outcome type="cyclonedx" >}}
 ```json

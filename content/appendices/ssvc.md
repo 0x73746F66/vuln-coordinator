@@ -30,7 +30,17 @@ Four inputs answer a four-step question: *can the vulnerable code run, what patc
 | `VERIFIED_UNREACHABLE` | Evidence the vulnerable function is never called — dead branch, disabled feature, build-time-only dep |
 | `UNKNOWN` | No conclusive evidence. **The tree treats UNKNOWN as REACHABLE** — bias is toward acting on the finding |
 
-How to gather: see the [package managers appendix](../package-managers/) — each per-language page has the static and runtime reachability tooling for that ecosystem.
+How to gather: the canonical "what function names should I grep for?" list comes from `vulnetix vdb vuln <CVE>` — pull `x_affectedRoutines`, which aggregates `programRoutines` and `programFiles` from the CVE record with AI-derived `x_affectedFunctions`:
+
+```bash
+vulnetix vdb vuln CVE-2021-44228 --output json \
+  | jq -r '.[0].containers.adp[0].x_affectedRoutines[]
+           | select(.kind == "function") | .name'
+# → org.apache.logging.log4j.core.lookup.JndiLookup.lookup
+#   org.apache.logging.log4j.core.pattern.MessagePatternConverter.format
+```
+
+Feed those names into your ecosystem's call-graph / coverage tooling — each [package managers appendix page](../package-managers/) lists the static and runtime tooling per language. If both come back negative (the symbol isn't reachable in your built artefact AND the importing code path isn't covered in production traffic), `VERIFIED_UNREACHABLE` is honest.
 
 ### 2. Remediation Option
 

@@ -65,6 +65,51 @@ jq --arg cve "CVE-2021-44228" \
    .vulnetix/sbom.cdx.json
 ```
 
+### From `vdb vuln` per CVE (`vulnetix vdb vuln <id>`)
+
+The CLI's enriched vuln-detail response carries two AI-derived fields that the on-disk SBOM doesn't — useful for reachability work and detection-rule selection.
+
+- `containers.adp[0].x_affectedRoutines` — deduplicated list of affected functions and files. Aggregates per-affected-entry `programRoutines` and `programFiles` from the CVE record with AI-derived `x_affectedFunctions`. The canonical "what to grep your codebase for" list.
+- `containers.adp[0].x_attackPaths` — tactic → technique mapping (each technique has `id`, `name`, `relation`). Populated alongside `containers.cna.taxonomyMappings`. Useful for picking which detection rules to deploy and for IR playbooks.
+
+```bash
+# Cache the vuln-detail response once per CVE
+vulnetix vdb vuln CVE-2021-44228 --output json > /tmp/cve.json
+
+# Affected functions/files — the grep targets
+jq '.[0].containers.adp[0].x_affectedRoutines' /tmp/cve.json
+# → [
+#     { "kind": "function", "name": "org.apache.logging.log4j.core.lookup.JndiLookup.lookup" },
+#     { "kind": "file", "path": "log4j-core/src/main/java/org/apache/logging/log4j/core/lookup/JndiLookup.java" },
+#     ...
+#   ]
+
+# Pull just the names for direct grep input
+jq -r '.[0].containers.adp[0].x_affectedRoutines[]
+       | select(.kind == "function") | .name' /tmp/cve.json \
+  | xargs -I{} git grep -nE '\b{}\b' src/
+
+# Attack paths — tactic → techniques
+jq '.[0].containers.adp[0].x_attackPaths' /tmp/cve.json
+# → [
+#     { "tactic": "Initial Access",
+#       "techniques": [
+#         { "id": "T1190", "name": "Exploit Public-Facing Application", "relation": "primary_method" }
+#       ] },
+#     { "tactic": "Execution",
+#       "techniques": [
+#         { "id": "T1059", "name": "Command and Scripting Interpreter", "relation": "post_exploit" }
+#       ] }
+#   ]
+
+# Map an attack path to detection-rule selection
+jq -r '.[0].containers.adp[0].x_attackPaths[]
+       | .techniques[] | .id' /tmp/cve.json \
+  | while read tid; do
+      vulnetix vdb snort-rules list --technique "$tid" --severity high
+    done
+```
+
 ### From the SARIF (`.vulnetix/sast.sarif`)
 
 - `runs[].results[].ruleId` — the `VNX-<lang>-<n>` identifier. The same ID resolves on [docs.cli.vulnetix.com](https://docs.cli.vulnetix.com/docs/sast-rules/) — the rule page is the source of truth for bad pattern, good pattern, and remediation.
