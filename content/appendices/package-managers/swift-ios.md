@@ -50,6 +50,15 @@ Carthage is simpler than SwiftPM / CocoaPods — fewer features, less drift. Res
 
 Gotcha: Carthage builds frameworks from source; an upgrade can break ABI compatibility with downstream consumers if the platform version is bumped.
 
+## Developer gotchas — written for people who live in the code
+
+- **Xcode and SwiftPM CLI use different caches.** Xcode caches in `~/Library/Developer/Xcode/DerivedData/`; CLI uses `.build/`. After a manifest bump, both need clearing.
+- **`Package.resolved` lives in two places.** In an SwiftPM-only repo it's at the root. In an Xcode project it's nested at `<project>.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`. Scanners that only look at the root may miss it.
+- **CocoaPods and SwiftPM coexisting in the same project.** Some libs are only available on one. Scanners may flag a dep twice (once per resolver). Reconcile in your VEX by stating which resolver's artefact is actually linked.
+- **Binary frameworks (`.xcframework`) are scanner-opaque.** Their contents aren't visible to source-level tooling. A CVE in a vendored xcframework requires the vendor to ship a fix; you can't bump it locally.
+- **`#if canImport(Foo)` makes reachability conditional.** Compile-time module availability changes which Swift files are included. A CVE in a conditional import path may not be in your shipping binary.
+- **iOS App Store distribution strips dead code.** Swift's `-Onone` debug builds keep more code than `-O` release builds. Reachability via runtime traces against debug builds over-estimates what ships.
+
 ## Reachability
 
 - `swift package show-dependencies --format json | jq` for the resolved graph.

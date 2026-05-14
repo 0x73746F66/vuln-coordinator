@@ -7,7 +7,7 @@ layout: single
 
 > **OSS** (AGPL-3.0) · [Vulnetix/cli](https://github.com/Vulnetix/cli) · [CLI docs](https://docs.cli.vulnetix.com/) · Maintained by [Vulnetix](https://www.vulnetix.com/), whose other AppSec products are commercial; the CLI itself is open source · Free Community VDB access; paid VDB plans for higher rate limits.
 >
-> **Rule registries** · 300+ built-in `VNX-*` Rego rules ship in the CLI · External rule packs load via `--rule org/repo` (default registry: `https://github.com`, overridable with `--rule-registry`) · Community packs: [Vulnetix/community-rules](https://github.com/Vulnetix/community-rules) · Built-in rule test cases: [Vulnetix/sast-rule-evals](https://github.com/Vulnetix/sast-rule-evals) (Apache-2.0)
+> **Rule registry** · 300+ built-in `VNX-*` Rego rules ship in the CLI · Canonical registry of external rule packs: [vulnetix.com/rules-registry](https://www.vulnetix.com/rules-registry) · Load any registered pack via `--rule org/repo` (override the resolution host with `--rule-registry`) · [Vulnetix/community-rules](https://github.com/Vulnetix/community-rules) is one of the registered packs · Built-in rule test cases: [Vulnetix/sast-rule-evals](https://github.com/Vulnetix/sast-rule-evals) (Apache-2.0)
 
 ## What Vulnetix does
 

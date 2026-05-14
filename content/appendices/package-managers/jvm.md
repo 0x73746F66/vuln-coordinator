@@ -595,3 +595,33 @@ Native-image AOT-compiles your app to a binary; reachability analysis happens at
 - **Spring Boot's repackaged JAR**: `spring-boot-maven-plugin`'s repackage goal nests dep JARs inside `BOOT-INF/lib/`. Native `jar tf` works; `unzip -l` works; but external SBOM tools sometimes only inspect the outer JAR and miss the nested ones. Verify with `unzip -l target/myapp.jar | grep BOOT-INF/lib/log4j-core`.
 - **Kotlin's `kapt` / `ksp` / annotation processors**: artefacts on the `kapt`/`annotationProcessor` configuration only run at build time. Production reachability is zero.
 - **Test-scope brought to runtime by a transitive**: `<scope>test</scope>` on your direct dep doesn't stop a *runtime*-scope transitive from also pulling it in. `mvn dependency:tree -Dscope=runtime` is the definitive check.
+
+## Developer gotchas — written for people who live in the code
+
+You write Java every day; you fight Maven once a quarter. These are the surprises that catch developers — not security engineers — when triaging an SCA finding.
+
+- **Maven uses "nearest wins", not "highest wins".** If `your-app → A → log4j-core:2.14.1` and `your-app → B → log4j-core:2.17.1`, the resolved version isn't the safer 2.17.1 — it's whichever path is *shortest*. Tie goes to first-declared. `mvn dependency:tree -Dverbose` shows the omitted-due-to-conflict notes. This is why bumping a transitive direct-parent often doesn't help — the *shorter* path still wins. Use `<dependencyManagement>` to break ties decisively.
+
+- **Your IDE classpath isn't your build classpath.** IntelliJ / Eclipse / VS Code do their own Maven/Gradle resolution and may show different versions than `mvn package` produces. The artefact you ship is what `mvn package` puts in `target/`; verify there, not in the IDE's "External Libraries" tree.
+
+- **`target/` is the truth.** `target/myapp.jar` contains exactly what runs in production. Scanners that read `pom.xml` may flag artefacts that don't end up in the JAR (compile-only, test-only, provided-scope). Conversely, scanners that read the JAR may miss artefacts your code *intends* to use but the build accidentally dropped. Run both: `mvn dependency:tree -Dscope=runtime` for intent, `jar tf target/myapp.jar` for actuality.
+
+- **The Maven local repo (`~/.m2/repository/`) caches forever.** A `mvn install` from six months ago still has `log4j-core-2.14.1.jar` on disk. `mvn clean install` rebuilds your project but doesn't redownload deps; `mvn -U` forces an update check; `rm -rf ~/.m2/repository/org/apache/logging` is the nuclear option. Containers built with a cached `.m2` mount will have whatever's in the cache, not what's in Central.
+
+- **Spring Boot's auto-import BOM is invisible in your POM.** You wrote `<dependency><groupId>org.apache.logging.log4j</groupId><artifactId>log4j-core</artifactId></dependency>` (no version) and Maven resolved 2.14.1. You didn't pin that version anywhere. Source: `spring-boot-starter-parent`'s parent POM imports `spring-boot-dependencies`, which has a `<log4j2.version>2.14.1</log4j2.version>` in its properties. Look in `mvn help:effective-pom` to see the inherited dependencyManagement. Bumping requires overriding the property or re-declaring before the BOM import.
+
+- **Kotlin / Scala source compiles against Java bytecode you don't write.** A CVE flagged in a Java library shows up on a Kotlin project's SCA scan because the Kotlin code calls the Java library. Reachability semantics are the same — `jdeps` works on the compiled `.class` regardless of source language.
+
+- **Gradle constraints aren't dependencies.** Adding `constraints { implementation("log4j-core:2.17.1") }` doesn't add log4j to your build. It only pins the version *if* something else drags it in. If nothing else does, the constraint is silently no-op. Verify with `./gradlew dependencyInsight --dependency log4j-core`. If the answer is "Module not found in any of the configurations", the constraint isn't taking effect.
+
+- **`./gradlew clean` doesn't clear the Gradle cache.** `~/.gradle/caches/modules-2/files-2.1/` holds resolved deps. `--refresh-dependencies` checks for newer; `./gradlew clean --refresh-dependencies build` is the cleanest run. Gradle daemons cache more aggressively; `./gradlew --stop` before a tricky refresh.
+
+- **Snapshots silently change.** A `1.0-SNAPSHOT` artefact resolves to whatever's currently in your snapshot repo. Today's `1.0-SNAPSHOT` may have a different bytecode than yesterday's. CVE flags against snapshots are timing-dependent; bump to a release version before triaging.
+
+- **`maven-failsafe-plugin` integration tests have their own classpath**. Test-scope deps + `provided`-scope deps + your runtime — Failsafe picks them up. If your scanner is reading the build's effective dependency list (which includes test scope), you'll see CVEs in test-only libs that don't ship. Filter by scope before triaging.
+
+- **`<dependency>` in a parent POM with `<scope>import</scope>` *is* a BOM**, but `<scope>import</scope>` only works inside `<dependencyManagement>`. People sometimes copy-paste it into `<dependencies>` directly — Maven silently treats it as `scope=compile` and pulls in the BOM POM as a regular dep (which doesn't have a jar, so it just adds dependencyManagement to nothing). Symptom: your BOM has no effect. Fix: nest it inside `<dependencyManagement>`.
+
+- **OSGi bundles ship with their own dependency declarations in `META-INF/MANIFEST.MF`.** A non-OSGi scanner reads `pom.xml`; OSGi runtime reads `MANIFEST.MF`'s `Import-Package`. They can disagree. Apache Karaf / Equinox containers may resolve differently than what your build said.
+
+- **Multi-module reactor builds — a CVE flagged on one module isn't necessarily *that* module's responsibility.** If `module-a` declares the affected dep and `module-b` depends on `module-a`, the bytecode lands in `module-b`'s shaded build. Triage at the module that *declares* it, not the one that ships it.

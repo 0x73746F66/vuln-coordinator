@@ -60,6 +60,34 @@ uv sync --frozen
 
 `uv` is the fastest of the Python lockers; `uv.lock` is TOML, human-readable, hash-locked. The frozen install in CI is the single biggest lever for build reproducibility. Gotcha: `uv` is comparatively new — the ecosystem is still catching up on tooling around it.
 
+## Developer gotchas — written for people who live in the code
+
+You import Python modules daily; you skim `requirements.txt` once a release. These are the surprises that catch developers when triaging an SCA finding.
+
+- **The scanner reads `requirements.txt`; your environment installed something else.** A loose pin like `requests>=2.20` lets your last `pip install` pick `2.32.3`, but the scanner sees `>=2.20` and may flag against the lowest version in the range. Fix: pin exact versions (`requirements.txt`-from-`pip-compile`, `Pipfile.lock`, `poetry.lock`, or `uv.lock`) so the *resolved* version is in source control. Check with `pip freeze | grep <pkg>` against the running container's site-packages, not your dev machine's.
+
+- **`pip install -e .` and the scanner disagree.** Editable installs link to your source tree, not to a wheel. Scanners that walk `site-packages` may report your own package as a dep and miss CVEs in your declared deps that haven't been installed. Symptom: scanner shows fewer deps than `pip freeze`. Fix: use a full `pip install -r requirements.txt` in the image you actually scan.
+
+- **`__init__.py` imports cascade — and reachability isn't just about your code.** `import pandas` runs `pandas/__init__.py` which imports `numpy`, `pyarrow`, `matplotlib` lazily-or-not. A CVE in `pyarrow` is reachable the moment `pandas` is imported, even if your code never references `pyarrow` directly. `pydeps` resolves it; manual grep doesn't.
+
+- **Conditional imports hide reachability.** `try: import cChardet; except ImportError: import chardet` — both are reachable depending on what's installed at runtime. The scanner picks one; your prod env may run the other. Check both.
+
+- **`pip install` versus `pip install --user` versus venv versus system Python.** Four installation locations. A CVE in the user-site `~/.local/lib/python3.11/site-packages` won't be in your container, but a dev running tests locally hits it. Scanners that walk file paths inside a container shouldn't see user-site at all — if they do, your Dockerfile may be doing something surprising like `COPY ~/.local` (rare but real).
+
+- **`pyproject.toml` `[project.optional-dependencies]` are opt-in.** `pip install mypkg[dev]` installs them; `pip install mypkg` doesn't. The scanner may flag a CVE in `pytest` but your production install never had it. VEX with `component_not_present` is honest if the prod install command doesn't request the extra.
+
+- **Build deps are installed in a build environment that's thrown away.** `[build-system] requires` (PEP 518) lists packages needed to *build* a wheel — `setuptools`, `wheel`, `cython`. pip creates an isolated env to run the build, then discards it. A CVE in `setuptools<70` may flag in your `pyproject.toml` but never touches your runtime. Build-env CVEs are runtime-not-affected.
+
+- **C extensions and the wheel/sdist split.** `requirements.txt` says `numpy==1.26`; pip may install a prebuilt wheel for Linux x86_64 *or* fall back to building from sdist on a less-common platform. The wheel and the sdist can have different bundled vendored deps. Scanners that read `METADATA` see the same version; scanners that read shared-object linkage (in containers) see different libraries.
+
+- **`pip` cached wheels survive `requirements.txt` changes.** `~/.cache/pip/wheels/` keeps built wheels. A CVE-affected version you bumped two months ago may still be in the cache; a Docker build that does `pip install` against a cached layer may install the cached version if the requirements line didn't change. Solution: `pip install --no-cache-dir` in production Dockerfiles.
+
+- **`PYTHONPATH` and `sys.path` manipulation makes reachability fuzzy.** Code that does `sys.path.insert(0, '/opt/legacy')` may pull in a different version of a vulnerable package than what's in `site-packages`. Scanners only see what's on disk; reachability requires reading the bootstrapping logic.
+
+- **Django/Flask middleware ordering changes the answer.** A CVE in a deserialisation library is only reachable if the middleware that calls it is in `MIDDLEWARE` / `app.register_blueprint`. The package is installed; the call site may not be wired up. Verify with `python manage.py check` plus grep on the middleware list.
+
+- **Conda env vs venv vs system pip.** If your scanner ran against a Conda env, the metadata layout (`conda-meta/`) differs from pip's. Scanners that only understand pip miss conda-only installs entirely. For a Conda-based project, use `conda list --json` plus `osv-scanner` with the `conda-meta` glob.
+
 ## Reachability
 
 - `pip show <pkg>` shows direct/transitive relationships.

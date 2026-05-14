@@ -125,3 +125,17 @@ The `overrides[]` array in `vcpkg.json` pins exact versions across the entire gr
 - Static: linker map (`gcc -Wl,--print-map`), then `nm`, `readelf`, or `objdump` for symbol enumeration.
 - `cflow` for source-level call graphs.
 - Runtime: Valgrind callgrind (`valgrind --tool=callgrind`) under a representative load.
+
+## Developer gotchas — written for people who live in the code
+
+Cross-cutting surprises that catch developers in the less-common ecosystems on this page:
+
+- **C/C++ scanners flag system libraries you didn't install via Conan/vcpkg.** A CVE in `libssl.so` may come from your distro's package manager rather than your dep manager. The fix path differs: distro upgrade for the system version, Conan/vcpkg lockfile for the vendored version. Confirm with `ldd <binary>` to see what the binary actually links against.
+- **Dart's `pubspec.lock` is gitignored by Flutter app templates by default but committed for libraries.** A library publishing a vulnerable resolved version doesn't help; the consumer re-resolves. App authors should commit the lockfile to make CVE triage reproducible.
+- **Elixir's `mix.lock` carries hex package checksums but doesn't catch git-pinned deps.** `{:dep, git: "https://github.com/foo/bar.git", ref: "abc1234"}` resolves to a SHA; CVE feeds that match by hex package name miss it. OSV recently started covering Elixir; coverage is improving but not complete.
+- **Haskell's `cabal.project.freeze` only constrains the build plan, not transitive integrity.** No SHA-per-package like other ecosystems. CVE matching by package version is the best you can do.
+- **Nix flakes (`flake.lock`) reference inputs by git rev — CVE matching needs the underlying package metadata.** Scanners that read `flake.lock` see the Nix-input identities; mapping those back to NVD CVEs requires the package's nixpkgs derivation.
+- **OCaml's `opam` lock files exist but adoption is uneven.** Many opam projects don't lock; resolution depends on the opam-repository git SHA at install time. Pinning to a repository commit is the closest thing to reproducible.
+- **Conan's `conanfile.lock` and vcpkg's baseline behave differently.** Conan's lock is per-build-configuration (debug vs release have separate lock entries); vcpkg's baseline is a single git ref that applies to all. CVE triage may need to consider both build configurations for Conan projects.
+- **C/C++ symbol visibility (`__attribute__((visibility("hidden")))`) hides exported symbols from `nm`.** A CVE on an unexported symbol is still reachable internally — `objdump -d` decodes the binary regardless of visibility hints.
+- **Static linking erases the dep's identity at scan time.** A CVE in a statically-linked C library doesn't appear in the binary's `ldd` output. Vendored, vendored-then-static, or `--whole-archive` linking all defeat dynamic-linker-based reachability checks. Source-time SCA against `conanfile.lock` is the only signal.

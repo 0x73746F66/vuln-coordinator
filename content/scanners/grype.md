@@ -421,6 +421,36 @@ If you also need a CycloneDX VEX entry (for other tools in your pipeline that co
 ```
 {{< /outcome >}}
 
+## Developer gotchas — written for people who write code, not Dockerfiles
+
+You write the application code; somebody's CI builds the image. These are the container-finding surprises that catch developers when triaging a Grype report.
+
+- **The same package can appear three times in one scan.** Your Node.js app's container has `node` (OS-package matcher, from the base image), `nodejs` (npm self-reference, sometimes embedded), and a few hundred npm modules from `package-lock.json`. A CVE in OpenSSL may surface as both a Debian dpkg match (`libssl3`) and an npm package match (`ssl-root-cas`) — the dpkg one is the base image, the npm one is your manifest. Same library, different triage workflow.
+
+- **"Just rebuild the image" doesn't always pick up the fix.** Docker layer caching keeps an `apt-get install foo` layer until the base image tag (or the previous `RUN` line) changes. A new security advisory for `foo` doesn't invalidate that cache. Force with `docker build --no-cache` or pin to the advisory's fixed version explicitly: `apt-get install -y foo=1.2.3-1+deb12u2`.
+
+- **Your `latest` tag isn't stable.** `FROM debian:latest` resolves at build time and varies week to week. The CVE that was in your last build may be patched in this one; new ones may appear. Pin to a date-stamped or version-stamped tag (`debian:12.8-slim`, `debian:bookworm-20240701-slim`). Scanners reading a `Dockerfile` may not even know which version the build resolved.
+
+- **`COPY --from=` only copies what you name.** Multi-stage builds let the build stage be huge and the runtime stage tiny. But a `COPY --from=build /app /app` brings *the entire `/app` directory*, including any node_modules / vendor / target that wasn't pruned. CVE in a dev dep can survive the multi-stage if you forgot `npm prune --production` or `mvn dependency:purge` before the copy.
+
+- **`USER root` vs `USER nobody` doesn't change CVE exposure but changes blast radius.** A reachable RCE in a container running as root pwns the container; as `nobody` it pwns less. The CVE counts are the same; the *consequence* of "VERIFIED_REACHABLE + HIGH" differs. Worth noting in the VEX `analysis.detail`.
+
+- **Distroless images don't have `apt`/`apk` — you can't upgrade in place.** `gcr.io/distroless/static` has no shell, no package manager. Your only fix is to rebuild the upstream distroless image's base — which means waiting for Google to publish a patched tag, or switching to a base that has package management (UBI minimal, Wolfi, Alpine).
+
+- **`SCRATCH` images have no package surface but you're not off the hook.** `FROM scratch` then `COPY mybinary /` — no OS packages, no libc, nothing for Grype to scan. The CVE you should worry about is in `mybinary` itself: if it's a Go binary, dependencies are baked in; if it's a dynamically-linked C binary, you'll have linker errors. Run `grype` on the binary directly: `grype file:./mybinary -o json`.
+
+- **`.dockerignore` controls what reaches the image — and what the scanner sees.** Adding `.git/` to `.dockerignore` means scanners can't compute git-based identifiers. Adding `vendor/` means a vendored CVE-affected dep doesn't appear in the image at all. Conversely, *not* having `node_modules/` in `.dockerignore` lets local dev dependencies leak into prod images.
+
+- **Health checks and entrypoint scripts can be vulnerable too.** A custom `ENTRYPOINT` that calls `curl <hardcoded URL>` brings in `libcurl`. Grype catches the library; the entrypoint script is often invisible to source SCA tools. Read the Dockerfile, not just `package.json`.
+
+- **`docker scan` and `docker scout` are different tools with different DBs.** "docker scanned clean" from a `docker scout cves` doesn't mean Grype agrees. Different feed sources, different matching algorithms. For CI gating, pick one and stick with it.
+
+- **The image's reported OS may not match what's actually installed.** `docker inspect <image> | jq '.[0].Config.Labels'` reports labels the image author set. `cat /etc/os-release` from inside the container is authoritative. Some images report `debian` but install `apk` on top (rare but real for vendor-built images).
+
+- **Container scans don't see what your runtime mounts.** A read-only `ConfigMap` mounted at `/app/config/` in Kubernetes isn't in the image; a `PersistentVolume` mounted at `/data/` likewise. CVE counts from the image may differ from reality on the cluster. Same for `:rw` bind mounts in `docker-compose.yml`.
+
+- **`docker history` reveals secrets that aren't in the image's filesystem.** A `RUN export AWS_KEY=foo && do-thing` puts `foo` in the layer metadata, even if it's not in the final filesystem. Grype won't flag it as a CVE, but secret scanners on the image (Trivy with `--security-checks secret`) will. Worth knowing the gotcha exists even though it's a different scanner family.
+
 ## Producing an OpenVEX
 
 For Dockerfile-pattern findings (Grype doesn't emit these — they come from Vulnetix or hadolint), OpenVEX would apply. For Grype's package-level matches, CycloneDX VEX is the right format because every match has a PURL.
