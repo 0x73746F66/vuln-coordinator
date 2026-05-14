@@ -448,7 +448,7 @@ This pins log4j-core even when Spring Boot's BOM resolves an older version. Use 
 {{< /tab >}}
 {{< /tabs >}}
 
-Now build the reachability check. Pull `x_affectedRoutines` from the enriched vuln record — it's the canonical list of affected functions and files, deduplicated from the CVE 5.x `programRoutines` / `programFiles` plus the AI-derived `x_affectedFunctions`.
+Now build the reachability check. Pull `x_affectedRoutines` from the enriched vuln record — it's the canonical list of affected functions and files, deduplicated from the CVE 5.x `programRoutines` / `programFiles` plus the `x_affectedFunctions`.
 
 ```bash
 # Fetch the full advisory enrichment

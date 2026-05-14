@@ -185,7 +185,7 @@ A supply-chain attack: publishing a package whose name resembles a popular one (
 A statement recording that a finding *has been triaged* and what the disposition is — `affected`, `not_affected`, `under_investigation`, `fixed`. Comes in [CycloneDX VEX](cyclonedx-vex/) (SBOM-coupled) and [OpenVEX](openvex/) (standalone) formats. See the [VEX overview](vex/).
 
 ### Vulnetix VDB
-Vulnetix's first-party vulnerability database — full coverage tier including CVE + GHSA + OSV + RUSTSEC + PYSEC + GO + MAL plus first-party AI-derived enrichments (`x_affectedRoutines`, `x_attackPaths`, sightings, weaponisation indicators, safe-harbour, maintainer-health, AI-malware families, traffic-filters). See [Vulnetix SCA](../../scanners/vulnetix/sca/) and the [capability matrix](../scanners/#capability-matrix).
+Vulnetix's first-party vulnerability database — full coverage tier including CVE + GHSA + OSV + RUSTSEC + PYSEC + GO + MAL plus first-party enrichments (`x_affectedRoutines`, `x_attackPaths`, sightings, weaponisation indicators, safe-harbour, maintainer-health, AI-malware families, traffic-filters). See [Vulnetix SCA](../../scanners/vulnetix/sca/) and the [capability matrix](../scanners/#capability-matrix).
 
 ## W
 
@@ -195,7 +195,7 @@ An exploit that's gone past proof-of-concept into a ready-to-use form — Metasp
 ## X
 
 ### `x_affectedRoutines`
-Vulnetix VDB enrichment field — the deduplicated list of affected functions and files for a CVE, aggregated from the CVE 5.x `programRoutines` / `programFiles` plus AI-derived `x_affectedFunctions`. The canonical "what to grep for" list. See [Vulnetix SCA](../../scanners/vulnetix/sca/).
+Vulnetix VDB enrichment field — the deduplicated list of affected functions and files for a CVE, aggregated from the CVE 5.x `programRoutines` / `programFiles` plus `x_affectedFunctions`. The canonical "what to grep for" list. See [Vulnetix SCA](../../scanners/vulnetix/sca/).
 
 ### `x_attackPaths`
 Vulnetix VDB enrichment field — per-CVE tactic→ATT&CK-technique mapping. Drives detection-rule selection (Snort, Nuclei, YARA, Sigma) rather than reachability. See [ATT&CK](#attack).

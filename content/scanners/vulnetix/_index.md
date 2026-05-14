@@ -71,9 +71,9 @@ jq --arg cve "CVE-2021-44228" \
 
 ### From `vdb vuln` per CVE (`vulnetix vdb vuln <id>`)
 
-The CLI's enriched vuln-detail response carries two AI-derived fields that the on-disk SBOM doesn't — useful for reachability work and detection-rule selection.
+The CLI's enriched vuln-detail response carries two fields that the on-disk SBOM doesn't — useful for reachability work and detection-rule selection.
 
-- `containers.adp[0].x_affectedRoutines` — deduplicated list of affected functions and files. Aggregates per-affected-entry `programRoutines` and `programFiles` from the CVE record with AI-derived `x_affectedFunctions`. The canonical "what to grep your codebase for" list.
+- `containers.adp[0].x_affectedRoutines` — deduplicated list of affected functions and files. Aggregates per-affected-entry `programRoutines` and `programFiles` from the CVE record with `x_affectedFunctions`. The canonical "what to grep your codebase for" list.
 - `containers.adp[0].x_attackPaths` — tactic → technique mapping (each technique has `id`, `name`, `relation`). Populated alongside `containers.cna.taxonomyMappings`. Useful for picking which detection rules to deploy and for IR playbooks.
 
 ```bash
@@ -344,7 +344,7 @@ See the [capability matrix](../#capability-matrix) for the full side-by-side. Vu
 
 Everywhere else, Vulnetix is the most-feature-complete tool in the [matrix](../#capability-matrix):
 
-- **[Database quality](../#database-quality-tiers)**: [Vulnetix VDB](../../appendices/glossary/#vulnetix-vdb) — full feed coverage plus first-party AI-derived enrichment.
+- **[Database quality](../#database-quality-tiers)**: [Vulnetix VDB](../../appendices/glossary/#vulnetix-vdb) — full feed coverage plus first-party enrichment.
 - **Exploit maturity**: `ACTIVE` / `POC` / `WEAPONISED` levels + honeypot sightings + CrowdSec community sightings + IOC pivots.
 - **[EOL](../../appendices/eol/)**: native `lifecycleStage` per dep/runtime/base-image plus `--block-eol` gate.
 - **[Supply-chain threats](../../appendices/supply-chain-threats/)**: proactive typosquat detection, AI-malware family detection, maintainer-health (OpenSSF Scorecard + account age + 2FA), `dep-add-guard` pre-add risk gate.

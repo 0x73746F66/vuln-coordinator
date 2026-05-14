@@ -30,7 +30,7 @@ Four inputs answer a four-step question: *can the vulnerable code run, what patc
 | `VERIFIED_UNREACHABLE` | Evidence the vulnerable function is never called — dead branch, disabled feature, build-time-only dep |
 | `UNKNOWN` | No conclusive evidence. **The tree treats UNKNOWN as REACHABLE** — bias is toward acting on the finding |
 
-How to gather: the canonical "what function names should I grep for?" list comes from `vulnetix vdb vuln <CVE>` — pull `x_affectedRoutines`, which aggregates `programRoutines` and `programFiles` from the CVE record with AI-derived `x_affectedFunctions`:
+How to gather: the canonical "what function names should I grep for?" list comes from `vulnetix vdb vuln <CVE>` — pull `x_affectedRoutines`, which aggregates `programRoutines` and `programFiles` from the CVE record with `x_affectedFunctions`:
 
 ```bash
 vulnetix vdb vuln CVE-2021-44228 --output json \
