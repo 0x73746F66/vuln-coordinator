@@ -244,6 +244,14 @@ Where the triage decision *lives* once you've made it, plus what non-code mitiga
 
 The matrix's "Database quality tier" row uses a five-tier scale. Tiers below shape what your scanner *can* detect — a scanner reading CVE/NVD only is missing half the ecosystem advisories.
 
+| Tier | Coverage | Verdict | Tools |
+|---|---|---|---|
+| **CVE/NVD only** | NIST-curated CVE records, often weeks behind ecosystem advisories | **Insufficient** | (Tools at this tier are increasingly rare; most modern scanners aggregate at least GHSA.) |
+| **CVE + GHSA** | + npm, pip, Maven, NuGet, RubyGems, Composer, Go via GitHub Advisory DB | **Minimal** | Dependabot |
+| **CVE + OSV** | + RUSTSEC, PYSEC, GO, MAL/Malicious-Packages, plus broad distro coverage (Alpine, Debian, Ubuntu, RHEL, Rocky, Alma, SUSE, Fedora, Mageia, Chainguard, Wolfi, Bitnami, Curl, Android, Linux kernel) and ecosystem aggregation via the [OSV aggregator](https://osv.dev/) | **Sufficient — nearly comprehensive at the source level** | osv-scanner |
+| **Commercial-curated + exploit-intel** | Commercial feed blending NVD + GHSA + distro feeds + first-party exploit-intel via heuristic flags (`riskFactors`); no AI / sightings / weaponisation enrichment | **Sufficient + exploit-intel heuristic** | Prisma Cloud (twistcli) |
+| **CVE + OSV + GCVE** | + Community-curated GCVE entries | **Good coverage** | **No scanner currently ships this tier.** |
+| **[Vulnetix VDB](../appendices/glossary/#vulnetix-vdb)** | Every feed above plus first-party AI-derived enrichment: `x_affectedFunctions`, sightings (honeypot + CrowdSec), weaponisation indicators, [`x_attackPaths`](../appendices/glossary/#x_attackpaths), maintainer-health (OpenSSF Scorecard + account age + 2FA), AI-malware families, traffic-filters (Snort/Suricata/Nuclei) | **Full coverage** | Vulnetix |
 
 OSV's feed coverage is nearly comprehensive at the *source* level — the "Sufficient" label reflects the absence of first-party AI enrichment (sightings, weaponisation, `x_affectedRoutines`, attack-paths), not gaps in advisory feeds. For raw "is this CVE in any feed" lookups, osv-scanner ties Vulnetix.
 
