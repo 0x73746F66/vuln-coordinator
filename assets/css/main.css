@@ -200,6 +200,27 @@ a:hover { opacity: 0.75; }
   background: rgba(102,220,200,0.08);
 }
 
+.sidebar__sublink {
+  display: block;
+  font-size: 13px;
+  color: var(--vx-bone);
+  opacity: 0.55;
+  padding: 5px 20px 5px 36px;
+  border-left: 2px solid transparent;
+  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+  line-height: 1.35;
+}
+.sidebar__sublink:hover {
+  opacity: 0.9;
+  background: rgba(102,220,200,0.04);
+}
+.sidebar__sublink.active {
+  opacity: 1;
+  color: var(--vx-mint);
+  border-left-color: var(--vx-mint);
+  background: rgba(102,220,200,0.06);
+}
+
 /* =========================================================
    CONTENT AREA
    ========================================================= */

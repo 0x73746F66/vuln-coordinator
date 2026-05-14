@@ -33,11 +33,13 @@
         <h2 class="home-toc__section-title">Each scanner speaks its own dialect.</h2>
         <p class="home-toc__section-desc">These guides translate each scanner's output into the same destination — a VEX statement that records what you decided about each finding.</p>
         <div class="home-toc__grid">
-          {{ range where .Site.RegularPages "Section" "scanners" }}
-            <a class="toc-card" href="{{ .RelPermalink }}">
-              <div class="toc-card__title">{{ .Title }}</div>
-              {{ with .Description }}<div class="toc-card__desc">{{ . }}</div>{{ end }}
-            </a>
+          {{ with .Site.GetPage "/scanners" }}
+            {{ range .Pages }}
+              <a class="toc-card" href="{{ .RelPermalink }}">
+                <div class="toc-card__title">{{ .Title }}</div>
+                {{ with .Description }}<div class="toc-card__desc">{{ . }}</div>{{ end }}
+              </a>
+            {{ end }}
           {{ end }}
         </div>
 

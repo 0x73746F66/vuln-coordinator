@@ -3,12 +3,17 @@
 
   <div class="sidebar__section">
     <div class="sidebar__heading">Scanners</div>
-    {{ range (where .Site.Pages "Section" "scanners") | first 1 }}
-      {{ $section := . }}
-    {{ end }}
-    {{ range where .Site.RegularPages "Section" "scanners" }}
-      <a class="sidebar__link{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
-         href="{{ .RelPermalink }}">{{ .Title }}</a>
+    {{ with .Site.GetPage "/scanners" }}
+      {{ range .Pages }}
+        <a class="sidebar__link{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
+           href="{{ .RelPermalink }}">{{ .Title }}</a>
+        {{ if .IsSection }}
+          {{ range .Pages }}
+            <a class="sidebar__sublink{{ if eq $currentPage.RelPermalink .RelPermalink }} active{{ end }}"
+               href="{{ .RelPermalink }}">{{ .Title }}</a>
+          {{ end }}
+        {{ end }}
+      {{ end }}
     {{ end }}
   </div>
 
