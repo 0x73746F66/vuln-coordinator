@@ -339,3 +339,10 @@ Dockerfile findings (VNX-DOCKER-*) go to **OpenVEX** — the subject is your ima
 }
 ```
 {{< /outcome >}}
+
+## See also
+
+- [Capability matrix](../#capability-matrix) — Vulnetix containers (unpacked-layer) vs Grype (image-binary).
+- [Grype's Class A/B/C/D taxonomy](../grype/#first-identify-the-finding-class) — the finding-class identification before fix-mechanic selection.
+- [EOL appendix](../../../appendices/eol/) — base-image EOL and migration to RHEL UBI / Chainguard / distroless.
+- [Glossary](../../../appendices/glossary/).

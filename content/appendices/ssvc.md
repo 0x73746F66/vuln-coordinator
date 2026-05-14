@@ -185,6 +185,8 @@ Scanner: Dependabot alert on express 4.16.4 (CVSS 6.5 MEDIUM, fix in 4.17.0+).
 
 **→ `SPIKE_EFFORT`** — sprint-scoped scope-and-bump, not a same-day emergency, not a deferral.
 
+> The [AI Coding Agent](ai-coding-agent/) captures these inputs in `.vulnetix/memory.yaml` automatically as you run `/vulnetix:vuln`, `/vulnetix:exploits`, and `/vulnetix:fix` — you don't have to fill the four-input table by hand.
+
 ## Recording the decision in VEX
 
 Engineer Triage's outcome belongs in the VEX `analysis.detail` along with the inputs that produced it. Future-you (and an auditor) needs to see the reasoning, not just the verdict.
@@ -215,3 +217,13 @@ The Coordinator output Vulnetix returns is a generic, deployment-agnostic answer
 - Coordinator says `Track` (low) — but the vulnerable function happens to be on your hot path for handling authentication tokens. Engineer Triage's `Reachability` is `VERIFIED_REACHABLE` and `Priority` is `HIGH` regardless of what Coordinator says. Outcome: `SPIKE_EFFORT` or `DROP_TOOLS`.
 
 The Coordinator decision is **an input**, not the conclusion. Engineer Triage's tree is what produces the action. Record both in your VEX `detail` field — the disagreement, if any, is what makes the analysis durable.
+
+
+## See also
+
+- [Capability matrix](../../scanners/#capability-matrix).
+- [Reachability deep-dive](../reachability-deep-dive/).
+- [EOL appendix](../eol/).
+- [Supply-chain threats](../supply-chain-threats/).
+- [SARIF appendix](../sarif/).
+- [Glossary](../glossary/).

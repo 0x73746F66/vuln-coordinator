@@ -245,3 +245,19 @@ When the CodeQL rule targets a specific library API — e.g. `java/jwt-missing-v
 }
 ```
 {{< /outcome >}}
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. CodeQL summary:
+
+- **Coverage**: SAST only.
+- **Database quality**: N/A — first-party query packs.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 2](../../appendices/reachability-deep-dive/#tier-2)** — call-graph + taint flow via the query packs. The richest [SARIF](../../appendices/sarif/) dialect (`codeFlows[]` + `partialFingerprints` + `properties.security-severity`). Misses [Tier 3](../../appendices/reachability-deep-dive/#tier-3) reflection / DI / framework-wiring unless a query specifically models the framework.
+- **Outputs**: SARIF (rich). No SCA findings → no SBOM / VEX emission.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/) — Tier 2's strengths and Tier 3 gap.
+- [SARIF appendix](../../appendices/sarif/) — CodeQL is the reference dialect.
+- [Glossary](../../appendices/glossary/).

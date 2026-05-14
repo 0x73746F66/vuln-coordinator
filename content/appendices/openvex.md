@@ -4,6 +4,8 @@ description: "Standalone, lightweight VEX — for findings that don't map to an 
 weight: 30
 ---
 
+> Or just run `/vulnetix:vex-publish` and the [AI Coding Agent](ai-coding-agent/) writes this for you — no need to learn the field names by hand.
+
 ## What OpenVEX is
 
 OpenVEX is a standalone VEX format maintained as an open specification by the OpenSSF and a small consortium of contributors. It carries the same job description as [CycloneDX VEX](../cyclonedx-vex/) — record a decision about a vulnerability — but takes the opposite design choice: where CycloneDX VEX lives inside (or alongside) an SBOM and identifies its subject by PURL, OpenVEX is a standalone JSON-LD document and lets the subject be anything you can identify with a URL or a PURL.
@@ -133,3 +135,10 @@ OpenVEX documents have a small top-level header and an array of statements.
 OpenVEX statements aren't immutable. When a decision changes — a `not_affected` becomes `affected` after new exploit research, or an `affected` becomes `fixed` after the patch ships — republish the document with the same `@id`, an incremented `version`, and a new `timestamp`. VEX-aware consumers will use the latest version automatically.
 
 The `@id` is the stable identifier for the decision. Two documents with the same `@id` are two versions of the same statement; two documents with different `@id`s are two different decisions, even if the vulnerability and product are identical.
+
+
+---
+
+Referenced in [NIST SP 800-218 (Secure Software Development Framework)](https://csrc.nist.gov/Projects/ssdf), the [CISA SSVC methodology](https://www.cisa.gov/ssvc), and the [EU Cyber Resilience Act](https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act) — VEX statements form part of the evidence trail for SOC 2 Type II, PCI-DSS, ISO 27001, and FedRAMP compliance work.
+
+See also: [Glossary](../glossary/), [SSVC Engineer Triage](../ssvc/), [Capability matrix](../../scanners/#capability-matrix).

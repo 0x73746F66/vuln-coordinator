@@ -65,3 +65,10 @@ rule CVE_XXXX_XXXX_webshell {
 ## OpenVEX outcome
 
 <!-- TODO: OpenVEX with `workaround_available`, YARA rule name + deployment location, CVE reference. -->
+
+
+## See also
+
+- [SSVC Engineer Triage](../../appendices/ssvc/) — the framework that maps a rule deployment to the `Mitigation Option` input.
+- [OpenVEX appendix](../../appendices/openvex/) — the format these rule guides produce.
+- [Glossary](../../appendices/glossary/).

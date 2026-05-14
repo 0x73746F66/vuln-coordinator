@@ -274,3 +274,19 @@ Sometimes DAST findings don't replay — a flaky session, a CSRF token that expi
 }
 ```
 {{< /outcome >}}
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. GitLab DAST summary:
+
+- **Coverage**: DAST only (ZAP-based).
+- **Database quality**: N/A — runtime-probe-driven.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: implicit — a DAST hit *is* reachability evidence (the probe reached the running endpoint). Doesn't map to the static [tier model](../../appendices/reachability-deep-dive/) cleanly; treat a positive DAST finding as runtime-confirmed `VERIFIED_REACHABLE`.
+- **Outputs**: ZAP Security Report JSON, [SARIF](../../appendices/sarif/) (limited).
+- **VEX**: GitLab Vulnerability Management dashboard records dismissals.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/) — DAST findings vs static reachability evidence.
+- [Glossary](../../appendices/glossary/).

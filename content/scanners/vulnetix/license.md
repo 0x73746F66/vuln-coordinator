@@ -284,3 +284,8 @@ A `not_affected` licence finding is uncommon but valid in one case: the flagged 
 {{< /outcome >}}
 
 The justification `component_not_present` is the honest answer because the licence finding *would* apply if the test-runner shipped, but it doesn't.
+
+## See also
+
+- [Capability matrix](../#capability-matrix) — Vulnetix license vs Snyk / GitLab Dependencies / Grype-via-syft.
+- [Glossary](../../../appendices/glossary/).

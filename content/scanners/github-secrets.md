@@ -246,3 +246,18 @@ gh api -X PATCH /repos/{owner}/{repo}/secret-scanning/alerts/<number> \
 }
 ```
 {{< /outcome >}}
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. GitHub Secrets summary:
+
+- **Coverage**: Secrets only (signature-based).
+- **Database quality**: N/A — signature/pattern-driven.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: N/A — secrets-as-content; reachability is a CVE concept.
+- **Outputs**: Alerts via the GitHub Secret Scanning REST API + UI.
+- **VEX**: no native emission. Resolution status (`revoked`, `wont-fix`, `false-positive`, `used-in-tests`) recorded on the alert.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Glossary](../../appendices/glossary/).

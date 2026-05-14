@@ -114,3 +114,10 @@ The shortest version: an SBOM converts a class of questions you currently answer
 **VEX statements need SBOMs.** A CycloneDX VEX document references specific SBOM components by PURL. Without a machine-readable SBOM, you can't produce a machine-readable VEX — see [VEX](../vex/).
 
 **Licence audits become greppable.** The SBOM records the SPDX licence for every dependency. Legal can audit licence obligations from one file instead of trawling through every `package.json`, `go.mod`, and `Cargo.toml` in the repo.
+
+
+## See also
+
+- [Capability matrix](../../scanners/#capability-matrix) — which scanners emit SBOMs.
+- [CycloneDX VEX](../cyclonedx-vex/) — the VEX format that references SBOM components.
+- [Glossary](../glossary/).

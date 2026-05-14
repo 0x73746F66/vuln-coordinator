@@ -53,3 +53,10 @@ alert http any any -> $HTTP_SERVERS $HTTP_PORTS (
 ## OpenVEX outcome
 
 <!-- TODO: OpenVEX statement with `workaround_available`, referencing the Snort SID, the CVE, and the deployment location. -->
+
+
+## See also
+
+- [SSVC Engineer Triage](../../appendices/ssvc/) — the framework that maps a rule deployment to the `Mitigation Option` input.
+- [OpenVEX appendix](../../appendices/openvex/) — the format these rule guides produce.
+- [Glossary](../../appendices/glossary/).

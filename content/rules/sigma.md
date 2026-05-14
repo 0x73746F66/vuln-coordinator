@@ -91,3 +91,10 @@ sigma convert \
 ## OpenVEX outcome
 
 <!-- TODO: OpenVEX statement with `workaround_available`, Sigma rule UUID + SIEM deployment reference, CVE, and detection confidence. -->
+
+
+## See also
+
+- [SSVC Engineer Triage](../../appendices/ssvc/) — the framework that maps a rule deployment to the `Mitigation Option` input.
+- [OpenVEX appendix](../../appendices/openvex/) — the format these rule guides produce.
+- [Glossary](../../appendices/glossary/).

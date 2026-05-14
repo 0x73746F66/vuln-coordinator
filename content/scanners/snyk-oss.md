@@ -240,3 +240,23 @@ For the rare case where the Snyk-flagged package isn't in your shipped artefact 
 }
 ```
 {{< /outcome >}}
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. Snyk OSS's row in summary:
+
+- **Coverage**: SCA (deps), license. Container scanning + IaC available on commercial tiers. No SAST in OSS (that's [Snyk SAST / Code](../snyk-sast/)).
+- **[Database quality](../#database-quality-tiers)**: CVE + GHSA + Snyk's curated DB. Between *minimal* and *sufficient* — Snyk's commercial DB adds advisories not in GHSA, but isn't OSV-equivalent.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 1](../../appendices/reachability-deep-dive/#tier-1)** by default. **[Tier 2 partial](../../appendices/reachability-deep-dive/#tier-2)** via the reachability-enabled Deep Test (commercial) — `vulnerabilities[].functions[]` carries affected class+function names per finding.
+- **Exploit maturity**: string label only (`Mature` / `Proof of Concept` / `No Known Exploit`). [EPSS](../../appendices/glossary/#epss-exploit-prediction-scoring-system) + KEV available in commercial tiers. No sightings or weaponisation indicators — cross-reference Vulnetix VDB.
+- **[EOL](../../appendices/eol/)**: commercial-tier signal only.
+- **[Supply-chain threats](../../appendices/supply-chain-threats/)**: commercial Malicious Packages advisory channel for `MAL-` coverage; no proactive typosquat detection.
+- **Outputs**: JSON, [SARIF](../../appendices/sarif/) (flat). No native VEX emission or consumption.
+
+## See also
+
+- [Capability matrix](../#capability-matrix) — Snyk OSS's column in context.
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/) — what `functions[]` Deep Test gives you vs the SCA default.
+- [Supply-chain threats](../../appendices/supply-chain-threats/) — what Snyk OSS detects vs requires cross-referencing.
+- [EOL appendix](../../appendices/eol/) — commercial-tier feature outside of Snyk OSS free.
+- [Glossary](../../appendices/glossary/).

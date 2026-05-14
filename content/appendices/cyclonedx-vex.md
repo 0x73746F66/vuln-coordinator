@@ -4,6 +4,8 @@ description: "VEX as part of CycloneDX — travels with the SBOM, points to comp
 weight: 25
 ---
 
+> Or just run `/vulnetix:vex-publish` and the [AI Coding Agent](ai-coding-agent/) writes this for you — no need to learn the field names by hand.
+
 ## What CycloneDX VEX is
 
 CycloneDX VEX is the VEX dialect built into the CycloneDX standard. A VEX document is either embedded inside a CycloneDX SBOM (in the same `vulnerabilities[]` array) or shipped as a standalone CycloneDX document that references the SBOM by `serialNumber`. Either way, every entry resolves back to a component declared in an SBOM — usually one of yours — by package URL.
@@ -141,3 +143,10 @@ Two valid shapes:
 **Standalone.** Ship the SBOM and VEX as two CycloneDX documents. The VEX has its own `serialNumber` and points to the SBOM via `metadata.tools` and `dependencies[]` references. Better when the SBOM is regenerated on every build but VEX statements accumulate across builds — the VEX has its own lifecycle.
 
 Most CI setups start with embedded and split when VEX maintenance starts diverging from SBOM regeneration. Either shape is consumed identically by VEX-aware scanners.
+
+
+---
+
+Referenced in [NIST SP 800-218 (Secure Software Development Framework)](https://csrc.nist.gov/Projects/ssdf), the [CISA SSVC methodology](https://www.cisa.gov/ssvc), and the [EU Cyber Resilience Act](https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act) — VEX statements form part of the evidence trail for SOC 2 Type II, PCI-DSS, ISO 27001, and FedRAMP compliance work.
+
+See also: [Glossary](../glossary/), [SSVC Engineer Triage](../ssvc/), [Capability matrix](../../scanners/#capability-matrix).

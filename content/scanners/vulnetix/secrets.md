@@ -332,3 +332,8 @@ Secrets always go to OpenVEX (no SBOM component). Required structure:
 | `action_statement` | Rotation timestamp, replacement storage location, history-rewrite commit, related-leak scan outcome, prevention added, incident reference |
 
 A `not_affected` status is rare for secrets — appropriate only when the matched string is provably a fixture (it's in a `tests/` directory, it's a documented example token, it's the AWS public example `AKIAIOSFODNN7EXAMPLE` in a tutorial). In those cases, also exclude the path via `--exclude` so the scan stops re-flagging it.
+
+## See also
+
+- [Capability matrix](../#capability-matrix) — Vulnetix Secrets vs GitHub / GitLab native secrets.
+- [Glossary](../../../appendices/glossary/).

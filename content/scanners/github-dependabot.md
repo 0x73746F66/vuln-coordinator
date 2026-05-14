@@ -256,3 +256,24 @@ Full workflow: [Vulnetix SCA verify-affected](../vulnetix/sca/#verify-affected--
 ## Patching mechanics
 
 The [package managers appendix](../appendices/package-managers/) covers lockfile editing, transitive coercion, and integrity verification for every supported ecosystem — useful for the alerts Dependabot can't auto-upgrade.
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. Dependabot summary:
+
+- **Coverage**: SCA only.
+- **[Database quality](../#database-quality-tiers)**: **CVE + GHSA** (*minimal*). Adds GitHub Advisory ingestion which is GHSA-shaped.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 1](../../appendices/reachability-deep-dive/#tier-1)** only — package-level. For function-level reachability, cross-reference [Vulnetix `x_affectedRoutines`](../../appendices/glossary/#x_affectedroutines).
+- **Exploit maturity**: GHSA flag only; KEV surfaced in some advisories. No EPSS, sightings, weaponisation.
+- **[EOL](../../appendices/eol/)**: not native; cross-reference [endoflife.date](https://endoflife.date/) or Vulnetix.
+- **[Supply-chain threats](../../appendices/supply-chain-threats/)**: surfaces `GHSA-MAL-` advisories reactively; no proactive typosquat detection.
+- **Outputs**: Alerts via the GitHub UI / REST API (SARIF-shaped Code Scanning), auto-MRs.
+- **VEX**: no native emission. Dismissal API records "won't fix" state separately.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/) — Tier-1 floor + cross-reference paths for Tier 2/3.
+- [Supply-chain threats](../../appendices/supply-chain-threats/).
+- [EOL appendix](../../appendices/eol/).
+- [Glossary](../../appendices/glossary/).

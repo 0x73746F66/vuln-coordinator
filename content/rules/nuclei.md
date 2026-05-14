@@ -78,3 +78,10 @@ http:
 ## Driving VEX decisions with Nuclei results
 
 <!-- TODO: If Nuclei confirms exploit: create `affected` VEX, prioritise fix. If Nuclei is blocked by WAF: create OpenVEX `workaround_available`. If Nuclei finds no vulnerable response: create `not_affected` VEX with `vulnerable_code_not_present` or `vulnerable_code_cannot_be_controlled_by_adversary`. -->
+
+
+## See also
+
+- [SSVC Engineer Triage](../../appendices/ssvc/) — the framework that maps a rule deployment to the `Mitigation Option` input.
+- [OpenVEX appendix](../../appendices/openvex/) — the format these rule guides produce.
+- [Glossary](../../appendices/glossary/).

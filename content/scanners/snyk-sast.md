@@ -275,3 +275,20 @@ Some Snyk Code rules target specific library APIs — e.g. a rule that flags any
 {{< /outcome >}}
 
 Most Snyk Code findings, though, only get an OpenVEX statement.
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. Snyk SAST (Code) summary:
+
+- **Coverage**: SAST only. SCA is [Snyk OSS](../snyk-oss/).
+- **Database quality**: N/A — first-party code rules, not a vulnerability DB consumer.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 2 codeFlow / taint](../../appendices/reachability-deep-dive/#tier-2)**. Each finding carries the source→sink data-flow trace. Misses reflection / DI / framework-wiring (the [Tier 3](../../appendices/reachability-deep-dive/#tier-3) gap that no major SAST tool covers natively).
+- **Outputs**: JSON, [SARIF](../../appendices/sarif/) with embedded codeFlow + `properties.snyk` extension fields.
+- **VEX**: no native emission or consumption.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/) — what taint flow proves and where it doesn't.
+- [SARIF appendix](../../appendices/sarif/) — Snyk SAST SARIF dialect.
+- [Glossary](../../appendices/glossary/).

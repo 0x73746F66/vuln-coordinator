@@ -294,3 +294,24 @@ For OSV findings where the affected package lacks a PURL (rare — usually only 
 }
 ```
 {{< /outcome >}}
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. osv-scanner's row in summary:
+
+- **Coverage**: SCA only — lockfile-driven.
+- **[Database quality](../#database-quality-tiers)**: **CVE + OSV** (*sufficient*). Reads the OSV API directly; covers GHSA + RUSTSEC + PYSEC + GO + MAL + OSV-native via the aggregator.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 1](../../appendices/reachability-deep-dive/#tier-1)** only. The OSV schema can carry `affected[].ecosystem_specific.imports[].symbols` — when populated, drive the grep targets from it (see the worked example above); otherwise cross-reference Vulnetix `x_affectedRoutines` for symbol-level reach.
+- **Exploit maturity**: OSV `database_specific.severity` is a bucketed label; no EPSS, KEV, sightings. Cross-reference Vulnetix VDB.
+- **[EOL](../../appendices/eol/)**: not native; cross-reference [endoflife.date](https://endoflife.date/) or [Vulnetix](../vulnetix/sca/#eol-gating-and---block-eol).
+- **[Supply-chain threats](../../appendices/supply-chain-threats/)**: native `MAL-` record support via OSV; no proactive typosquat / maintainer-health.
+- **Outputs**: JSON (rich, native), [SARIF](../../appendices/sarif/) (flat, minimal projection of OSV).
+- **VEX**: no native emission or consumption.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/) — when OSV's `imports[]` symbols are enough.
+- [Supply-chain threats](../../appendices/supply-chain-threats/) — OSV `MAL-` is the canonical feed.
+- [EOL appendix](../../appendices/eol/).
+- [Glossary](../../appendices/glossary/).

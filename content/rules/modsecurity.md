@@ -50,3 +50,10 @@ SecRule ARGS "@detectSQLi" \
 ## OpenVEX outcome
 
 <!-- TODO: OpenVEX statement referencing the rule ID, the CVE, justification `workaround_available`, and a pointer to the deployed rule. -->
+
+
+## See also
+
+- [SSVC Engineer Triage](../../appendices/ssvc/) — the framework that maps a rule deployment to the `Mitigation Option` input.
+- [OpenVEX appendix](../../appendices/openvex/) — the format these rule guides produce.
+- [Glossary](../../appendices/glossary/).

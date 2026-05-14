@@ -20,21 +20,11 @@ VEX comes in two flavours. They do the same job but live in different homes.
 
 For the format details, field reference, and worked examples, see the dedicated pages.
 
-## Which one do I pick?
+## You don't need to pick
 
-A short decision rule:
+The format choice should never be your problem. The [Vulnetix AI Coding Agent](ai-coding-agent/) — slash-commands distributed across Claude Code, Cursor, Windsurf, Copilot, Gemini, and a dozen other editors — picks the right format from context and writes the attestation for you. Run `/vulnetix:vex-publish` after triaging a finding and it generates both file types as appropriate: entries with a [PURL](glossary/#purl-package-url) (library, package, OS dep, container layer) → CycloneDX VEX; entries without one (first-party SAST, secrets, runtime mitigations against unpatched vulnerabilities) → OpenVEX. The plugin also optionally cosign-signs the result and posts it to the originating GitHub PR.
 
-{{< decision >}}
-Does the finding name a component that appears in your SBOM (a library, a package, an OS-level dependency, a container layer)?
-  ├─ Yes → CycloneDX VEX, referencing the component by PURL
-  └─ No  → OpenVEX, with the repo or service as the subject
-
-If the same finding has both a packaged-component angle (the vulnerable library) and a runtime mitigation (a WAF rule that blocks the vector):
-  ├─ Write the CycloneDX VEX entry for the component, status `affected` with `workaround_available`
-  └─ Optionally write a parallel OpenVEX statement against the deployed service for SOC tooling that consumes OpenVEX
-{{< /decision >}}
-
-In practice most teams pick one format as canonical and only reach for the other when forced. Pick CycloneDX VEX if you already ship an SBOM in CI; pick OpenVEX if you don't, or if your stack is SAST-heavy where most findings sit in first-party code.
+If you do want to know the rule the agent applies: **PURL-backed component → CycloneDX VEX; everything else → OpenVEX.** That's it. The dedicated pages for [CycloneDX VEX](cyclonedx-vex/) and [OpenVEX](openvex/) have the field references and worked examples if you want to author one by hand, but you usually shouldn't have to.
 
 ## Why VEX matters to a developer
 
@@ -51,3 +41,10 @@ Writing VEX feels like an extra step. It's worth it for five reasons that compou
 **Compliance is already done.** VEX is referenced in CISA guidance, NIST SP 800-218, and the EU Cyber Resilience Act as the mechanism for communicating exploitability status. Producing VEX during normal development means the compliance artefact exists before it's requested.
 
 Grype, Trivy, and the Vulnetix platform all consume VEX today. The investment pays back every time the scanner runs.
+
+
+---
+
+Referenced in [NIST SP 800-218 (Secure Software Development Framework)](https://csrc.nist.gov/Projects/ssdf), the [CISA SSVC methodology](https://www.cisa.gov/ssvc), and the [EU Cyber Resilience Act](https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act) — VEX statements form part of the evidence trail for SOC 2 Type II, PCI-DSS, ISO 27001, and FedRAMP compliance work.
+
+See also: [AI Coding Agent](ai-coding-agent/), [CycloneDX VEX](cyclonedx-vex/), [OpenVEX](openvex/), [Glossary](glossary/), [SSVC Engineer Triage](ssvc/), [Capability matrix](../scanners/#capability-matrix).

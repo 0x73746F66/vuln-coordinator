@@ -456,3 +456,23 @@ You write the application code; somebody's CI builds the image. These are the co
 For Dockerfile-pattern findings (Grype doesn't emit these — they come from Vulnetix or hadolint), OpenVEX would apply. For Grype's package-level matches, CycloneDX VEX is the right format because every match has a PURL.
 
 The exception: if Grype is scanning a binary directory (`grype dir:./build/`) and the matched component lacks a manifest-derived PURL (rare — usually a CPE fallback match), use OpenVEX with the binary path as the subject identifier.
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. Grype's row in summary:
+
+- **Coverage**: SCA (container + filesystem). No native SAST, DAST, IaC, secrets-as-content (a file matcher exists but isn't a focused secrets scanner), or DAST.
+- **[Database quality](../#database-quality-tiers)**: CVE + GHSA + GitLab Advisory + distro feeds (Ubuntu USN, Alpine secdb, RedHat, Amazon ALAS, Wolfi). Sufficient for OS-package coverage; minimal-to-sufficient for ecosystem coverage.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 1](../../appendices/reachability-deep-dive/#tier-1)** (package-level only). The `ldd | grep <lib>` recipe in this guide is a Tier-1.5 manual technique. For Tier-2/Tier-3 evidence, cross-reference [Vulnetix](../vulnetix/sca/) or run a SAST tool against the application code.
+- **Exploit maturity**: severity label only; no [EPSS](../../appendices/glossary/#epss-exploit-prediction-scoring-system), [KEV](../../appendices/glossary/#kev-known-exploited-vulnerabilities), sightings, or weaponisation indicators. Cross-reference Vulnetix VDB.
+- **[EOL](../../appendices/eol/)**: not native; inferred when the distro feed reports no fix available. For runtime/package/base-image EOL, cross-reference [endoflife.date](https://endoflife.date/) or [Vulnetix](../vulnetix/sca/#eol-gating-and---block-eol).
+- **[Supply-chain threats](../../appendices/supply-chain-threats/)**: reactive only (via feed `MAL-` records). No proactive typosquat or maintainer-health.
+- **Outputs**: JSON (rich, native), [SARIF](../../appendices/sarif/) (flat), table, template-driven. **VEX consumption** via `--vex` (OpenVEX only). No native VEX emission.
+
+## See also
+
+- [Capability matrix](../#capability-matrix) — Grype's column in context.
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/) — what Tier-1 evidence supports, and when you need Tier 2/3.
+- [EOL appendix](../../appendices/eol/) — for the "should I bump or migrate this base image?" decision.
+- [Supply-chain threats](../../appendices/supply-chain-threats/) — for MAL- records Grype's feed surfaces.
+- [Glossary](../../appendices/glossary/) — definitions for the terms used above.

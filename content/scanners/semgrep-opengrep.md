@@ -248,3 +248,19 @@ For rules you've written yourself (in your repo's `rules/` directory, run with `
   "description": "Custom rule in rules/yourorg-custom.yaml — flags unsanitised user input in template literals."
 }
 ```
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. Semgrep / Opengrep summary:
+
+- **Coverage**: SAST. Can be extended to IaC and secret patterns via rule packs.
+- **Database quality**: N/A — pattern-rule-driven.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 1 pattern-match](../../appendices/reachability-deep-dive/#tier-1)** in OSS / default mode; **[Tier 2 taint flow](../../appendices/reachability-deep-dive/#tier-2)** in Semgrep Pro / `opengrep --pro` mode. OSS misses dataflow but is fast and free.
+- **Outputs**: JSON, [SARIF](../../appendices/sarif/) (flat OSS, codeFlows in Pro). No native VEX emission.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/) — pattern-match vs taint flow distinction.
+- [SARIF appendix](../../appendices/sarif/) — Semgrep dialect (codeFlows in Pro only).
+- [Glossary](../../appendices/glossary/).

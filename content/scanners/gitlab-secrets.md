@@ -212,3 +212,18 @@ If the matched string is a documented example (e.g. `AKIAIOSFODNN7EXAMPLE` — A
 }
 ```
 {{< /outcome >}}
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. GitLab Secrets summary:
+
+- **Coverage**: Secrets only.
+- **Database quality**: N/A — signature/pattern-driven via gitleaks.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: N/A.
+- **Outputs**: gitleaks Security Report JSON, [SARIF](../../appendices/sarif/) (limited).
+- **VEX**: GitLab Vulnerability Management dashboard records dismissals.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Glossary](../../appendices/glossary/).

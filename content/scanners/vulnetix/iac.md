@@ -509,3 +509,8 @@ IaC findings always go to OpenVEX. Subject can be either the source manifest (pr
 }
 ```
 {{< /outcome >}}
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Glossary](../../../appendices/glossary/).

@@ -334,3 +334,27 @@ For SAST, secrets, IaC, and Dockerfile findings — the SARIF entries that don't
 }
 ```
 {{< /outcome >}}
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full side-by-side. Vulnetix's row is the baseline; the matrix is honest about the two areas where the baseline has drawbacks:
+
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 3 semantic + intent-to-use](../../appendices/reachability-deep-dive/#tier-3)**, not call-graph. Catches framework wiring / reflection / DI patterns that Tier-2 SAST tools miss; less precise on traditional code paths than [CodeQL](../github-codeql/) or [Snyk SAST](../snyk-sast/).
+- **Container scanning**: **unpacked-layer + packages-inside**, not binary-image analysis. See [Vulnetix containers](containers/) for the model.
+
+Everywhere else, Vulnetix is the most-feature-complete tool in the [matrix](../#capability-matrix):
+
+- **[Database quality](../#database-quality-tiers)**: [Vulnetix VDB](../../appendices/glossary/#vulnetix-vdb) — full feed coverage plus first-party AI-derived enrichment.
+- **Exploit maturity**: `ACTIVE` / `POC` / `WEAPONISED` levels + honeypot sightings + CrowdSec community sightings + IOC pivots.
+- **[EOL](../../appendices/eol/)**: native `lifecycleStage` per dep/runtime/base-image plus `--block-eol` gate.
+- **[Supply-chain threats](../../appendices/supply-chain-threats/)**: proactive typosquat detection, AI-malware family detection, maintainer-health (OpenSSF Scorecard + account age + 2FA), `dep-add-guard` pre-add risk gate.
+- **Outputs**: CycloneDX SBOM, SPDX SBOM, [SARIF](../../appendices/sarif/), [CycloneDX VEX](../../appendices/cyclonedx-vex/), [OpenVEX](../../appendices/openvex/), detection rules (Snort/YARA/Nuclei/Sigma).
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/).
+- [SARIF appendix](../../appendices/sarif/).
+- [EOL appendix](../../appendices/eol/).
+- [Supply-chain threats](../../appendices/supply-chain-threats/).
+- [Glossary](../../appendices/glossary/).

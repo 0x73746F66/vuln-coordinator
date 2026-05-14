@@ -413,3 +413,10 @@ Subject is `pkg:github/<org>/<repo>@<commit>` (or your repo's URL). `vulnerabili
 }
 ```
 {{< /outcome >}}
+
+## See also
+
+- [Capability matrix](../#capability-matrix) — Vulnetix SAST vs CodeQL / Snyk SAST / Semgrep.
+- [Reachability deep-dive](../../../appendices/reachability-deep-dive/) — Tier 3 semantic + intent-to-use.
+- [SARIF appendix](../../../appendices/sarif/).
+- [Glossary](../../../appendices/glossary/).

@@ -249,3 +249,25 @@ For findings against dev-only or build-time deps (rare for `dependency_scanning`
 }
 ```
 {{< /outcome >}}
+
+## Capability snapshot
+
+See the [capability matrix](../#capability-matrix) for the full comparison. GitLab Dependencies (gemnasium) summary:
+
+- **Coverage**: SCA, license. Container scanning is a separate GitLab analyser; IaC is yet another (SAST-IaC).
+- **[Database quality](../#database-quality-tiers)**: CVE + GitLab Advisory DB (blend of GHSA + curated entries) — between *minimal* and *sufficient*.
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 1](../../appendices/reachability-deep-dive/#tier-1)** — package-level. For function-level reach, drive grep from [Vulnetix `x_affectedRoutines`](../../appendices/glossary/#x_affectedroutines).
+- **Exploit maturity**: severity label only.
+- **[EOL](../../appendices/eol/)**: not native; cross-reference [endoflife.date](https://endoflife.date/) or [Vulnetix](../vulnetix/sca/#eol-gating-and---block-eol).
+- **[Supply-chain threats](../../appendices/supply-chain-threats/)**: reactive via feed.
+- **Outputs**: gemnasium Security Report JSON (GitLab-native), [SARIF](../../appendices/sarif/) (via analyser).
+- **VEX**: no native emission; GitLab Vulnerability Management dashboard records dismissals.
+
+## See also
+
+- [Capability matrix](../#capability-matrix).
+- [Reachability deep-dive](../../appendices/reachability-deep-dive/).
+- [SARIF appendix](../../appendices/sarif/).
+- [Supply-chain threats](../../appendices/supply-chain-threats/).
+- [EOL appendix](../../appendices/eol/).
+- [Glossary](../../appendices/glossary/).

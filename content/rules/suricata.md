@@ -63,3 +63,10 @@ alert tls any any -> any any (
 ## OpenVEX outcome
 
 <!-- TODO: OpenVEX with `workaround_available`, Suricata SID reference, CVE, deployment location. -->
+
+
+## See also
+
+- [SSVC Engineer Triage](../../appendices/ssvc/) — the framework that maps a rule deployment to the `Mitigation Option` input.
+- [OpenVEX appendix](../../appendices/openvex/) — the format these rule guides produce.
+- [Glossary](../../appendices/glossary/).

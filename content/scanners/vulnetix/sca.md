@@ -109,7 +109,7 @@ Vulnetix's CI flags double as triage signals. If the scan failed because of one 
 
 ## From finding to root cause
 
-The universal six-step path, each step with the exact `jq` or CLI to run.
+The universal six-step path, each step with the exact `jq` or CLI to run. The [AI Coding Agent](../../../appendices/ai-coding-agent/) wraps every step below into one-step slash commands — `/vulnetix:vuln`, `/vulnetix:exploits`, `/vulnetix:fix`, `/vulnetix:remediation`, `/vulnetix:verify-fix`, `/vulnetix:vex-publish` — if you'd rather not run the `jq` pipelines by hand.
 
 ```bash
 # Step 1 — read the PURL for one finding (start with the first critical)
@@ -775,3 +775,13 @@ Field-by-field reference, then three full examples covering the common analysis 
 ```
 {{< /tab >}}
 {{< /tabs >}}
+
+## See also
+
+- [Capability matrix](../#capability-matrix) — Vulnetix vs other SCA tools (Dependabot, Snyk OSS, OSV-Scanner, GitLab, Grype).
+- [Reachability deep-dive](../../../appendices/reachability-deep-dive/) — Vulnetix's Tier 3 semantic model in context.
+- [EOL appendix](../../../appendices/eol/) — the `--block-eol` gate and `lifecycleStage` field.
+- [Supply-chain threats](../../../appendices/supply-chain-threats/) — `MAL-` records, typosquat-check, maintainer-health.
+- [SARIF appendix](../../../appendices/sarif/) — Vulnetix SARIF dialect.
+- [JVM appendix](../../../appendices/package-managers/jvm/) — the twelve Maven mechanisms and eleven Gradle mechanisms.
+- [Glossary](../../../appendices/glossary/).
