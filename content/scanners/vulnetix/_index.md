@@ -151,6 +151,51 @@ jq '.runs[].results[] | {
     }' .vulnetix/sast.sarif
 ```
 
+## Reachability — two paths
+
+Vulnetix offers two complementary reachability workflows. Pick the one that matches the cost you're willing to pay and the audience the evidence has to convince.
+
+### Path A — CLI-driven (recommended default)
+
+For most findings, the Vulnetix CLI's `--reachability` flag is the fastest evidence path. The CLI fetches precise per-CVE detection patterns from the VDB and evaluates them locally against your source using language-aware grammars for 17 languages: JavaScript, TypeScript, TSX, Python, Go, Java, Ruby, Rust, C, C++, C#, PHP, Swift, Kotlin, Scala, Bash, and Lua. Matches land under `x_reachability` in the JSON output — split into `direct` (your first-party code) and `transitive` (vendored or fetched dep source).
+
+```bash
+# Per-CVE reachability evidence — direct + transitive
+vulnetix vdb vuln CVE-2021-44228 --reachability=both --output json \
+  | jq '.[0].x_reachability'
+
+# Whole-scan: reachability merged into every SCA finding
+vulnetix scan --reachability=both --severity high
+
+# Pull just the matched call-sites for one CVE from a SARIF scan artefact
+jq --arg cve "CVE-2021-44228" \
+   '.runs[].results[]
+    | select(.ruleId == $cve)
+    | .properties.x_reachability.direct[]?
+    | { file: .file, line: .line, evidence: .evidence }' \
+  .vulnetix/sast.sarif
+
+# Disable reachability entirely (fall back to package-presence only)
+vulnetix scan --reachability=off
+```
+
+Modes available on `--reachability=<mode>`:
+
+| Mode | Behaviour |
+|---|---|
+| `direct` | Match only first-party source files. Fastest. |
+| `transitive` | Walk dependency source where available. Catches the case where a transitive dep is the one calling through to the affected routine. |
+| `both` | Union of direct + transitive. Default. |
+| `off` | Disable reachability entirely; fall back to Tier-1 package-presence findings only. |
+
+This is **Tier 3 evidence** — semantic intent-to-use — graded against the [three-tier model](../../appendices/reachability-deep-dive/). Cost: seconds to a minute per repo. Treat it as the SSVC Engineer Triage `Reachability` input on every scan.
+
+### Path B — manual Tier 1 / 2 / 3 evidence (when you need to defend an audit)
+
+When Path A's verdict isn't enough — typically for KEV-listed criticals on the audit critical path, or for `analysis.detail` text in a VEX statement that a third-party will review — fall through to the full three-tier evidence collection documented in the [reachability deep-dive](../../appendices/reachability-deep-dive/). The per-language manual recipes (Tier 1 linkage commands, Tier 2 call-graph tooling, Tier 3 framework-wiring inspection) remain unchanged and complement Path A: the CLI gives you the headline answer, the manual workflow gives you the auditor-grade narrative.
+
+Use Path B when the SSVC decision is `Act`, the finding is on the critical path, and an auditor or incident responder will read the VEX `analysis.detail`. The manual `x_affectedRoutines` + `git grep` workflow [described above](#from-vdb-vuln-per-cve-vulnetix-vdb-vuln-id) is also part of Path B for users who want full control over the matching step.
+
 ## Decision tree
 
 Two decisions to make, in order. The first is about **what action to take** — prioritise this finding via SSVC Engineer Triage. The second is about **what format to record it in** — CycloneDX VEX or OpenVEX.
@@ -339,7 +384,7 @@ For SAST, secrets, IaC, and Dockerfile findings — the SARIF entries that don't
 
 See the [capability matrix](../#capability-matrix) for the full side-by-side. Vulnetix's row is the baseline; the matrix is honest about the two areas where the baseline has drawbacks:
 
-- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 3 semantic + intent-to-use](../../appendices/reachability-deep-dive/#tier-3)**, not call-graph. Catches framework wiring / reflection / DI patterns that Tier-2 SAST tools miss; less precise on traditional code paths than [CodeQL](../github-codeql/) or [Snyk SAST](../snyk-sast/).
+- **[Reachability](../../appendices/reachability-deep-dive/)**: **[Tier 3 semantic + intent-to-use](../../appendices/reachability-deep-dive/#tier-3)**, not call-graph. Catches framework wiring / reflection / DI patterns that Tier-2 SAST tools miss; less precise on traditional code paths than [CodeQL](../github-codeql/) or [Snyk SAST](../snyk-sast/). Surfaced via the CLI's [`--reachability=direct\|transitive\|both\|off`](#reachability--two-paths) flag (17 languages) — see [Reachability — two paths](#reachability--two-paths) for the CLI-driven workflow alongside the manual Tier-1/2/3 evidence path.
 - **Container scanning**: **unpacked-layer + packages-inside**, not binary-image analysis. See [Vulnetix containers](containers/) for the model.
 
 Everywhere else, Vulnetix is the most-feature-complete tool in the [matrix](../#capability-matrix):
